@@ -8,6 +8,7 @@ import re
 import sys
 
 import numpy as np
+import simplejson as json
 from tabulate import tabulate
 
 from helper_funcs import chunks, swap_chars_in_str, print_bt_table
@@ -43,7 +44,7 @@ def parse_rassi(text, reverse, swap):
     # is found and appended to a new root.
     root = list()
     all_roots = [root, ]
-    last_conf = None
+    last_conf = -1
     for line in rassi_raw:
         conf_number = line[0]
         if conf_number < last_conf:
@@ -110,7 +111,7 @@ def parse_rassi(text, reverse, swap):
     org_ens = [float(n) for n in org_ens.strip().split()]
     # Find indices of the original energies in the RASSI State energies
     inds = [energies.index(oe) for oe in org_ens]
-    if inds != range(len(inds)):
+    if inds != list(range(len(inds))):
         logging.warning("Swapping of states detected!")
 
     # Now reorder the roots and their indices
@@ -171,6 +172,12 @@ def read_mos(fn):
             int(dft_mo))
         )
 
+    return per_jobiph
+
+def read_mos(fn):
+    with open(fn) as handle:
+        verbose_dict = json.load(handle)
+    per_jobiph = [verbose_dict[k] for k in verbose_dict]
     return per_jobiph
 
 def significant_confs(root):
@@ -269,7 +276,7 @@ def run(fn, reverse, swap):
     with open(fn) as handle:
         text = handle.read()
     
-    verbose_fn = os.path.splitext(fn)[0] + ".csv"
+    verbose_fn = os.path.splitext(fn)[0] + ".json"
     try:
         verbose_mos = read_mos(verbose_fn)
     except IOError:
@@ -318,15 +325,19 @@ def run(fn, reverse, swap):
     output = list()
     for i in range(len(energies)):
         state, jobiph, root = root_ids[i]
-        output.append(
-            (state,
-            jobiph,
-            root,
-            energies[i],
-            hartree2eV(energies_rel[i]),
-            hartree2nm(energies_rel[i]),
-            trs_dct(i + 1))
-        )
+        try:
+            output.append(
+                (state,
+                jobiph,
+                root,
+                energies[i],
+                hartree2eV(energies_rel[i]),
+                hartree2nm(energies_rel[i]),
+                trs_dct(i + 1))
+            )
+        except KeyError:
+            logging.warning("MOLCAS, why did you forget transition"
+                    " 1 -> 19? Molcas, why?")
     output = sorted(output, key=lambda row: row[3])
     
     return output, verbose_confs_dict
