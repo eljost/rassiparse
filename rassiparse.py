@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+from collections import OrderedDict
 import logging
 import os.path
 import re
@@ -145,40 +146,12 @@ def hartree2eV(hartree):
     """Convert an energy from electronvolt to atomic units."""
     return hartree * 27.2114
 
+
 def hartree2nm(hartree):
     """Convert an energy in atomic units to electronvolt."""
     with np.errstate(divide="ignore"):
         return 6.63e-34 * 2.9979e8 * 1e9 / (hartree * 27.2114 * 1.6e-19)
 
-def read_mos(fn):
-    """Load information about MO types from supplied filename"""
-    # irrep, mo, mo_verbose, dft_mo
-    with open(fn) as handle:
-        text = handle.read()
-
-    curr_jobiph = list()
-    per_jobiph = [curr_jobiph, ]
-    lines = text.split("\n")[:-1]
-    for line in lines:
-        if line == "":
-            curr_jobiph = list()
-            per_jobiph.append(curr_jobiph)
-            continue
-        irrep, mo, mo_verbose, dft_mo = line.split()
-        curr_jobiph.append((
-            int(irrep),
-            int(mo),
-            mo_verbose,
-            int(dft_mo))
-        )
-
-    return per_jobiph
-
-def read_mos(fn):
-    with open(fn) as handle:
-        verbose_dict = json.load(handle)
-    per_jobiph = [verbose_dict[k] for k in verbose_dict]
-    return per_jobiph
 
 def significant_confs(root):
     return [conf for conf in root if conf[-1] >= 0.1]
@@ -276,9 +249,10 @@ def run(fn, reverse, swap):
     with open(fn) as handle:
         text = handle.read()
     
-    verbose_fn = os.path.splitext(fn)[0] + ".json"
     try:
-        verbose_mos = read_mos(verbose_fn)
+        verbose_fn = os.path.splitext(fn)[0] + ".json"
+        with open(verbose_fn) as handle:
+            verbose_mos = json.load(handle, object_pairs_hook=OrderedDict)
     except IOError:
         verbose_mos = None
 
@@ -307,9 +281,11 @@ def run(fn, reverse, swap):
             if verbose_mos:
                 mo_pairs = conf_diff(ground_state_conf, conf)
                 for from_index, to_index in mo_pairs:
-                    jobiph_mos = verbose_mos[jobiph-1]
-                    verbose_from = jobiph_mos[from_index][2].decode("utf-8")
-                    verbose_to = jobiph_mos[to_index][2].decode("utf-8")
+                    # Convert the key to a string because our dict
+                    # we loaded from the .json-file has string-keys
+                    jobiph_mos = verbose_mos[str(jobiph)]
+                    verbose_from = jobiph_mos[from_index]
+                    verbose_to = jobiph_mos[to_index]
                     # Save information in verbose_confs_dict for later
                     # printing.
                     # Use a tuple holding the jobiph number and the root
@@ -378,7 +354,7 @@ def print_output(output, verbose_confs_dict, header):
         try:
             verbose_confs = verbose_confs_dict[id_tpl]
             verbose_tpl = ("\t{}", "->",  "{}", "\t{:.2%}")
-            verbose_str = unicode("\t".join(verbose_tpl))
+            verbose_str = "\t".join(verbose_tpl)
             for vc in verbose_confs:
                 from_mo, to_mo, weight = vc
                 print(verbose_str.format(
@@ -414,7 +390,7 @@ if __name__ == "__main__":
     parser.add_argument("--booktabs", action="store_true",
             help="Format output so that it's usable in latex-tables.")
     parser.add_argument("--sym", nargs="+", default=None,
-        help="Symmetries of the WF in the JobIph-files.")
+            help="Symmetries of the WF in the JobIph-files.")
     args = parser.parse_args()
     fn = args.fn
     rev = args.rev
