@@ -8,6 +8,7 @@ import os.path
 import re
 import sys
 
+from docx import Document
 import numpy as np
 import simplejson as json
 from tabulate import tabulate
@@ -15,6 +16,70 @@ from tabulate import tabulate
 from helper_funcs import chunks, swap_chars_in_str, print_bt_table
 import rex
 import td
+
+
+def make_docx(output, verbose_confs_dict):
+    """Export the supplied excited states into a .docx-document."""
+    docx_fn = "export.docx"
+    # The table header
+    header = ("State",
+              "λ / nm",
+              "E / eV",
+              "f",
+              "natural orbitals",
+              "Weight / %")
+    attrs = ("id", "l", "dE", "f")
+    trans_fmt = "{} → {}"
+    weight_fmt = "{:.0%}"
+
+    # Prepare the data to be inserted into the table
+    as_lists = [[i, Enm, EeV, f]
+                for i, (state, jobiph, root, E, EeV, Enm, f)
+                in enumerate(output[1:], 1)]
+    id_tpls = [(jobiph, root)
+               for state, jobiph, root, *_
+               in output[1:]]
+    as_fmt_lists = [[
+        "S{}".format(id_),
+        "{:.1f}".format(l),
+        "{:.2f}".format(dE),
+        "{:.4f}".format(f)] for id_, l, dE, f in as_lists]
+
+    # For one excited state there may be several configurations
+    # that contribute. This loop constructs two string, holding
+    # the information about the transitions and the contributing
+    # weights.
+    for i, id_tpl in enumerate(id_tpls):
+        try:
+            verbose_confs = verbose_confs_dict[id_tpl]
+        except KeyError:
+            continue
+        trans_list = [trans_fmt.format(from_mo, to_mo)
+                      for from_mo, to_mo, _
+                      in verbose_confs]
+        trans_str = "\n".join(trans_list)
+        weight_list = [weight_fmt.format(weight)
+                       for _, __, weight in verbose_confs]
+        weight_str = "\n".join(weight_list)
+        as_fmt_lists[i].extend([trans_str, weight_str])
+
+    # Prepare the document and the table
+    doc = Document()
+    # We need one additional row for the table header
+    table = doc.add_table(rows=len(output[1:])+1,
+                          cols=len(header))
+
+    # Set header in the first row
+    for item, cell in zip(header, table.rows[0].cells):
+        cell.text = item
+
+    # Start from the 2nd row (index 1) and fill in all cells
+    # with the parsed data.
+    for i, fmt_list in enumerate(as_fmt_lists, 1):
+        for item, cell in zip(fmt_list, table.rows[i].cells):
+            cell.text = item
+    # Save the document
+    doc.save(docx_fn)
 
 def parse_rassi(text, reverse, swap):
     """Parse rassi file produced by MOLCAS."""
@@ -391,6 +456,8 @@ if __name__ == "__main__":
             help="Format output so that it's usable in latex-tables.")
     parser.add_argument("--sym", nargs="+", default=None,
             help="Symmetries of the WF in the JobIph-files.")
+    parser.add_argument("--docx", action="store_true",
+            help="Export data to a .docx-table.")
     args = parser.parse_args()
     fn = args.fn
     rev = args.rev
@@ -413,5 +480,7 @@ if __name__ == "__main__":
     if args.booktabs:
         print_booktabs(output, args.sym)
         sys.exit()
+    if args.docx:
+        make_docx(output, verbose_confs_dict)
 
     print_output(output, verbose_confs_dict, output_headers)
