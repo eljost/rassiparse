@@ -11,7 +11,6 @@ import sys
 from docx import Document
 import numpy as np
 import simplejson as json
-from tabulate import tabulate
 
 from helper_funcs import chunks, swap_chars_in_str, print_bt_table
 import rex
@@ -28,7 +27,6 @@ def make_docx(output, verbose_confs_dict):
               "f",
               "natural orbitals",
               "Weight / %")
-    attrs = ("id", "l", "dE", "f")
     trans_fmt = "{} → {}"
     weight_fmt = "{:.0%}"
 
@@ -81,6 +79,7 @@ def make_docx(output, verbose_confs_dict):
     # Save the document
     doc.save(docx_fn)
 
+
 def parse_rassi(text, reverse, swap):
     """Parse rassi file produced by MOLCAS."""
     lines = text.split("\n")
@@ -100,7 +99,7 @@ def parse_rassi(text, reverse, swap):
 
     root_nums_re = "It is root nr."
     root_nums = rex.find_ints(text, root_nums_re)
-    
+
     nums_combined = zip(state_nums, jobiph_nums, root_nums)
 
     # Split according to the configuration number
@@ -159,7 +158,7 @@ def parse_rassi(text, reverse, swap):
     # Get total energies
     energy_re = "::    RASSI State\s+\d+\s+Total energy:"
     energies = rex.find_floats(text, energy_re)
-    
+
     # Check if RASSI changed the ordering of the states. For this
     # compare the ordering in "HAMILTON MATRIX FOR THE ORIGINAL
     # STATES" to the ordering in the "RASSI State" table and
@@ -187,11 +186,12 @@ def parse_rassi(text, reverse, swap):
 
     return unique_roots, already_added, trans, energies
 
+
 def make_trans_dict(trans):
     """Create a dictionary holding all the oscillator
     strengths of the different electronic transitions."""
     trans_dict = {
-        "1,1" : 0.0,
+        "1,1": 0.0,
     }
     for t in trans:
         to, ffrom, osc_str = t[:3]
@@ -199,13 +199,16 @@ def make_trans_dict(trans):
 
     return trans_dict
 
+
 def sort_by_ci_coeff(root):
     return sorted(root, key=lambda lst: -lst[-1])
 
+
 def make_spectrum(transitions, start_l, end_l):
-    es = [td.ExcitedState(i, 0, 0, trs[4], trs[5], trs[6], 0) for
-            i, trs in enumerate(transitions[1:])]
+    es = [td.ExcitedState(i, 0, 0, trs[4], trs[5], trs[6], 0)
+          for i, trs in enumerate(transitions[1:])]
     td.make_spectrum(es, start_l, end_l, False)
+
 
 def hartree2eV(hartree):
     """Convert an energy from electronvolt to atomic units."""
@@ -221,6 +224,7 @@ def hartree2nm(hartree):
 def significant_confs(root):
     return [conf for conf in root if conf[-1] >= 0.1]
 
+
 def one_by_one_diff(str1, str2):
     """Compare two strings one by one. The output is inspired
     by difflib.ndiff(...)"""
@@ -233,6 +237,7 @@ def one_by_one_diff(str1, str2):
             diffs.append("- {}".format(c1))
             diffs.append("+ {}".format(c2))
     return diffs
+
 
 def conf_diff(c1, c2):
     """Compute transitions between two configurations that are outputted
@@ -287,8 +292,8 @@ def conf_diff(c1, c2):
             offset += 1
 
     spin_pairs = {
-        "u" : "d",
-        "d" : "u"
+        "u": "d",
+        "d": "u"
     }
 
     #print from_mos
@@ -367,8 +372,8 @@ def run(fn, reverse, swap):
     for i in range(len(energies)):
         state, jobiph, root = root_ids[i]
         try:
-            output.append(
-                (state,
+            output.append((
+                state,
                 jobiph,
                 root,
                 energies[i],
@@ -376,12 +381,17 @@ def run(fn, reverse, swap):
                 hartree2nm(energies_rel[i]),
                 trs_dct(i + 1))
             )
-        except KeyError:
-            logging.warning("MOLCAS, why did you forget transition"
-                    " 1 -> 19? Molcas, why?")
+        except KeyError as err:
+            from_state, to_state = err.args[0].split(",")
+            logging.warning(
+                "Oscillator strength below threshold for transition"
+                " {} -> {}.".format(
+                    from_state,
+                    to_state))
     output = sorted(output, key=lambda row: row[3])
-    
+
     return output, verbose_confs_dict
+
 
 def print_booktabs(output, symms):
     bt_list = list()
@@ -395,6 +405,7 @@ def print_booktabs(output, symms):
         bt_list.append((sym, EeV, Enm, f))
 
     print_bt_table(bt_list)
+
 
 def print_output(output, verbose_confs_dict, header):
 
@@ -430,6 +441,7 @@ def print_output(output, verbose_confs_dict, header):
         except KeyError:
             pass
         print
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse a &rassi-output" \
