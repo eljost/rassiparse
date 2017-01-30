@@ -17,11 +17,12 @@ import rex
 import td
 
 
-def make_docx(output, verbose_confs_dict, docx_fn):
+def make_docx(output, verbose_confs_dict, irreps, docx_fn):
     """Export the supplied excited states into a .docx-document."""
     docx_fn = os.path.splitext(docx_fn)[0] + ".docx"
     # The table header
     header = ("State",
+              "Sym.",
               "λ / nm",
               "E / eV",
               "f",
@@ -31,7 +32,7 @@ def make_docx(output, verbose_confs_dict, docx_fn):
     weight_fmt = "{:.0%}"
 
     # Prepare the data to be inserted into the table
-    as_lists = [[i, Enm, EeV, f]
+    as_lists = [[i, irreps[jobiph], Enm, EeV, f]
                 for i, (state, jobiph, root, E, EeV, Enm, f)
                 in enumerate(output[1:], 1)]
     id_tpls = [(jobiph, root)
@@ -39,9 +40,10 @@ def make_docx(output, verbose_confs_dict, docx_fn):
                in output[1:]]
     as_fmt_lists = [[
         "S{}".format(id_),
+        sym,
         "{:.1f}".format(l),
         "{:.2f}".format(dE),
-        "{:.4f}".format(f)] for id_, l, dE, f in as_lists]
+        "{:.4f}".format(f)] for id_, sym, l, dE, f in as_lists]
 
     # For one excited state there may be several configurations
     # that contribute. This loop constructs two string, holding
@@ -315,16 +317,9 @@ def conf_diff(c1, c2):
 
     return mo_pairs
 
-def run(fn, reverse, swap):
+def run(fn, active_spaces, reverse, swap):
     with open(fn) as handle:
         text = handle.read()
-    
-    try:
-        verbose_fn = os.path.splitext(fn)[0] + ".json"
-        with open(verbose_fn) as handle:
-            verbose_mos = json.load(handle, object_pairs_hook=OrderedDict)
-    except IOError:
-        verbose_mos = None
 
     roots, root_ids, trans, energies, = parse_rassi(text, reverse, swap)
 
@@ -348,12 +343,12 @@ def run(fn, reverse, swap):
         conf_tpls = significant_confs(root)
         for conf_tpl in conf_tpls:
             conf_id, whoot, conf, ci, weight = conf_tpl
-            if verbose_mos:
+            if active_spaces:
                 mo_pairs = conf_diff(ground_state_conf, conf)
                 for from_index, to_index in mo_pairs:
                     # Convert the key to a string because our dict
                     # we loaded from the .json-file has string-keys
-                    jobiph_mos = verbose_mos[str(jobiph)]
+                    jobiph_mos = active_spaces[jobiph]
                     verbose_from = jobiph_mos[from_index]
                     verbose_to = jobiph_mos[to_index]
                     # Save information in verbose_confs_dict for later
@@ -408,7 +403,6 @@ def print_booktabs(output, symms):
 
 
 def print_output(output, verbose_confs_dict, header):
-
     header_tpl = ["{}" for item in output_headers]
     header_str = "\t".join(header_tpl)
     print(header_str.format(*output_headers))
@@ -479,7 +473,17 @@ if __name__ == "__main__":
     else:
         swap = list()
 
-    output, verbose_confs_dict = run(fn, rev, swap)
+    try:
+        verbose_fn = os.path.splitext(fn)[0] + ".json"
+        with open(verbose_fn) as handle:
+            json_data = json.load(handle, object_pairs_hook=OrderedDict)
+            active_spaces = {int(key): json_data[key]["as"] for key in json_data}
+            irreps = {int(key): json_data[key]["irrep"] for key in json_data}
+    except IOError:
+        active_spaces = None
+        irreps = None
+
+    output, verbose_confs_dict = run(fn, active_spaces, rev, swap)
 
     output_headers = ("State", "JobIph", "Root", "E in a.u.",
         "dErel in eV", "Erel in nm", "f")
@@ -493,6 +497,6 @@ if __name__ == "__main__":
         print_booktabs(output, args.sym)
         sys.exit()
     if args.docx:
-        make_docx(output, verbose_confs_dict, fn)
+        make_docx(output, verbose_confs_dict, irreps, fn)
 
     print_output(output, verbose_confs_dict, output_headers)
