@@ -17,9 +17,9 @@ import rex
 import td
 
 
-def make_docx(output, verbose_confs_dict):
+def make_docx(output, verbose_confs_dict, docx_fn):
     """Export the supplied excited states into a .docx-document."""
-    docx_fn = "export.docx"
+    docx_fn = os.path.splitext(docx_fn)[0] + ".docx"
     # The table header
     header = ("State",
               "λ / nm",
@@ -493,6 +493,6 @@ if __name__ == "__main__":
         print_booktabs(output, args.sym)
         sys.exit()
     if args.docx:
-        make_docx(output, verbose_confs_dict)
+        make_docx(output, verbose_confs_dict, fn)
 
     print_output(output, verbose_confs_dict, output_headers)
