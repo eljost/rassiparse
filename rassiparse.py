@@ -459,8 +459,7 @@ if __name__ == "__main__":
                              integers starts at 0.
                              --swap 2 1 0 6
                              swaps the first char with the seventh char
-                             in the irrep 1 in the 2nd Jobfile."""
-    )
+                             in the irrep 1 in the 2nd Jobfile.""")
     parser.add_argument("--spectrum", nargs=2, type=float,
                         help="Output an spectrum.")
     parser.add_argument("--booktabs", action="store_true",
