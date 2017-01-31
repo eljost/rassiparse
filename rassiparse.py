@@ -30,6 +30,11 @@ def make_docx(output, verbose_confs_dict, irreps, docx_fn):
               "Weight / %")
     trans_fmt = "{} → {}"
     weight_fmt = "{:.0%}"
+    if irreps is None:
+        # Create a fake 'irreps' dict were all jobiphs belong to
+        # the totalsymmetric irrep 'A'
+        irreps = {i: "A" for i in range(8)}
+        logging.warning("Irrep-Hack used!")
 
     # Prepare the data to be inserted into the table
     as_lists = [[i, irreps[jobiph], Enm, EeV, f]
