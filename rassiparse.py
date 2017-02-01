@@ -9,6 +9,7 @@ import re
 import sys
 
 from docx import Document
+from jinja2 import Environment, FileSystemLoader
 import numpy as np
 import simplejson as json
 
@@ -17,9 +18,12 @@ import rex
 import td
 
 
-def make_docx(output, verbose_confs_dict, irreps, docx_fn):
+THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+
+
+def make_docx(output, verbose_confs_dict, irreps, fn_base):
     """Export the supplied excited states into a .docx-document."""
-    docx_fn = os.path.splitext(docx_fn)[0] + ".docx"
+    docx_fn = fn_base + ".docx"
     # The table header
     header = ("State",
               "Sym.",
@@ -30,11 +34,6 @@ def make_docx(output, verbose_confs_dict, irreps, docx_fn):
               "Weight / %")
     trans_fmt = "{} → {}"
     weight_fmt = "{:.0%}"
-    if irreps is None:
-        # Create a fake 'irreps' dict were all jobiphs belong to
-        # the totalsymmetric irrep 'A'
-        irreps = {i: "A" for i in range(8)}
-        logging.warning("Irrep-Hack used!")
 
     # Prepare the data to be inserted into the table
     as_lists = [[i, irreps[jobiph], Enm, EeV, f]
@@ -442,6 +441,37 @@ def print_output(output, verbose_confs_dict, header):
         print
 
 
+def make_states_list(output, irreps):
+    # Sort by energy
+    by_energy = sorted(output, key=lambda state: state[4])
+    states = list()
+    for i, state in enumerate(by_energy):
+        id, jobiph, root, E, EeV, Enm, f = state
+        key_tpl = (jobiph, root)
+        states.append({"id": i,
+                       "sym": irreps[jobiph],
+                       "Enm": Enm,
+                       "EeV": EeV,
+                       "f": f,
+                       "key": key_tpl
+        })
+    return states
+
+
+def make_html(output, verbose_confs, irreps, fn_base, imgs):
+    j2_env = Environment(loader=FileSystemLoader(THIS_DIR,
+                                                 followlinks=True))
+    tpl = j2_env.get_template("templates/html.tpl")
+    states = make_states_list(output, irreps)
+    rendered = tpl.render(states=states,
+                          verbose_confs=verbose_confs,
+                          imgs=imgs)
+    out_fn = os.path.join(
+                os.getcwd(), fn_base + ".html")
+    with open(out_fn, "w") as handle:
+        handle.write(rendered)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse a &rassi-output" \
                                      " from MOLCAS.")
@@ -468,6 +498,8 @@ if __name__ == "__main__":
             help="Symmetries of the WF in the JobIph-files.")
     parser.add_argument("--docx", action="store_true",
             help="Export data to a .docx-table.")
+    parser.add_argument("--html", action="store_true",
+            help="Export data to a .html-file.")
     args = parser.parse_args()
     fn = args.fn
     rev = args.rev
@@ -483,9 +515,20 @@ if __name__ == "__main__":
             json_data = json.load(handle, object_pairs_hook=OrderedDict)
             active_spaces = {int(key): json_data[key]["as"] for key in json_data}
             irreps = {int(key): json_data[key]["irrep"] for key in json_data}
+            imgs = dict()
+            for key in json_data:
+                for_jobiph = json_data[key]
+                img_fns = ["mo_{}.png".format(img) for img in for_jobiph["imgs"]]
+                as_ = for_jobiph["as"]
+                img_dict = {mo: img_fn for mo, img_fn in zip(as_, img_fns)}
+                imgs[int(key)] = img_dict
     except IOError:
         active_spaces = None
-        irreps = None
+        imgs = None
+        # Create a fake 'irreps' dict were all jobiphs belong to
+        # the totalsymmetric irrep 'A'
+        irreps = {i: "A" for i in range(8)}
+        logging.warning("Irrep-Hack used!")
 
     output, verbose_confs_dict = run(fn, active_spaces, rev, swap)
 
@@ -493,6 +536,7 @@ if __name__ == "__main__":
         "dErel in eV", "Erel in nm", "f")
     output_headers = ("JobIph", "Root", "dE in eV", "dE in nm", "f")
 
+    fn_base = os.path.splitext(fn)[0]
     if args.spectrum:
         from_l, to_l = args.spectrum
         make_spectrum(output, from_l, to_l)
@@ -501,6 +545,8 @@ if __name__ == "__main__":
         print_booktabs(output, args.sym)
         sys.exit()
     if args.docx:
-        make_docx(output, verbose_confs_dict, irreps, fn)
+        make_docx(output, verbose_confs_dict, irreps, fn_base)
+    if args.html:
+        make_html(output, verbose_confs_dict, irreps, fn_base, imgs)
 
     print_output(output, verbose_confs_dict, output_headers)
