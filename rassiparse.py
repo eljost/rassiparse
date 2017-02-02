@@ -338,7 +338,6 @@ def run(fn, active_spaces, reverse, swap):
 
     # Assume first root is holding the ground state configuration
     ground_state_conf = significant_confs(roots[0])[0][2]
-    print(ground_state_conf)
     # Create a dict to hold verbose information about the
     # configurations for later printing
     verbose_confs_dict = dict()
