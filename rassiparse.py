@@ -338,6 +338,7 @@ def run(fn, active_spaces, reverse, swap):
 
     # Assume first root is holding the ground state configuration
     ground_state_conf = significant_confs(roots[0])[0][2]
+    print(ground_state_conf)
     # Create a dict to hold verbose information about the
     # configurations for later printing
     verbose_confs_dict = dict()
@@ -518,7 +519,11 @@ if __name__ == "__main__":
             imgs = dict()
             for key in json_data:
                 for_jobiph = json_data[key]
-                img_fns = ["mo_{}.png".format(img) for img in for_jobiph["imgs"]]
+                if len(irreps) > 1:
+                    img_fns = ["mo_{}.irrep{}.png".format(img, key)
+                               for img in for_jobiph["imgs"]]
+                else:
+                    img_fns = ["mo_{}.png".format(img) for img in for_jobiph["imgs"]]
                 as_ = for_jobiph["as"]
                 img_dict = {mo: img_fn for mo, img_fn in zip(as_, img_fns)}
                 imgs[int(key)] = img_dict
