@@ -227,8 +227,8 @@ def hartree2nm(hartree):
         return 6.63e-34 * 2.9979e8 * 1e9 / (hartree * 27.2114 * 1.6e-19)
 
 
-def significant_confs(root):
-    return [conf for conf in root if conf[-1] >= 0.1]
+def significant_confs(root, thresh=0.1):
+    return [conf for conf in root if conf[-1] >= thresh]
 
 
 def one_by_one_diff(str1, str2):
@@ -251,8 +251,6 @@ def conf_diff(c1, c2):
     E.g. 2222000 2200 and 222u000 220d would give [(3, 10)]
     """
 
-    assert ("u" not in c1) and ("d" not in c1), "Only singlet ground" \
-            " states supported"
     """
     # Check if there could be several possible transitions and then abort
     c2_split = c2.split()
@@ -336,8 +334,26 @@ def run(fn, active_spaces, reverse, swap):
     # Energies relative to the ground state
     energies_rel = np.array(energies) - energies[0]
 
-    # Assume first root is holding the ground state configuration
-    ground_state_conf = significant_confs(roots[0])[0][2]
+    # Search for a singlet ground state configuration in the first
+    # root.
+    sig_confs = significant_confs(roots[0], thresh=0.0)
+    closed_shell_confs = [(conf, weight) for _, __, conf, ci, weight
+                          in sig_confs
+                          if ("d" not in conf) and ("u" not in conf)]
+    hf_regex_str = "(2+)(0+)"
+    ground_state_conf = None
+    for cs_conf in closed_shell_confs:
+        conf, weight = cs_conf
+        match_obj = re.match(hf_regex_str, conf)
+        g2, g0 = match_obj.groups()
+        if g2+g0 == conf:
+            ground_state_conf = conf
+    if ground_state_conf != sig_confs[0][2]:
+        logging.warning("HF configuration doesn't have the highest weight"
+                        " in the ground state!")
+    if not ground_state_conf:
+        logging.error("Couldn't determine a HF configuration!")
+        sys.exit()
     # Create a dict to hold verbose information about the
     # configurations for later printing
     verbose_confs_dict = dict()
