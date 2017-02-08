@@ -334,6 +334,9 @@ def run(fn, active_spaces, reverse, swap):
     # Energies relative to the ground state
     energies_rel = np.array(energies) - energies[0]
 
+    ground_state_conf = significant_confs(roots[0])[0][2]
+
+    """
     # Search for a singlet ground state configuration in the first
     # root.
     sig_confs = significant_confs(roots[0], thresh=0.0)
@@ -344,7 +347,11 @@ def run(fn, active_spaces, reverse, swap):
     ground_state_conf = None
     for cs_conf in closed_shell_confs:
         conf, weight = cs_conf
-        match_obj = re.match(hf_regex_str, conf)
+        match_objs = [re.match(hf_regex_str, per_irrep)
+                      for per_irrep
+                      in conf.split()]
+        groups = [mo.groups() for mo in match_objs]
+        # Reconstruct configuration
         g2, g0 = match_obj.groups()
         if g2+g0 == conf:
             ground_state_conf = conf
@@ -354,6 +361,7 @@ def run(fn, active_spaces, reverse, swap):
     if not ground_state_conf:
         logging.error("Couldn't determine a HF configuration!")
         sys.exit()
+    """
     # Create a dict to hold verbose information about the
     # configurations for later printing
     verbose_confs_dict = dict()
