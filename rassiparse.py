@@ -86,76 +86,40 @@ def make_docx(output, verbose_confs_dict, irreps, fn_base):
     doc.save(docx_fn)
 
 
-def parse_rassi(text, reverse, swap):
-    """Parse rassi file produced by MOLCAS."""
+def parse_state(text):
+    state_re = "state\s*(\d+)"
+    jobiph_re = "JobIph nr.\s*(\d+)"
+    root_re = "It is root nr.\s*(\d+)"
+    confs_re_raw = (int, "\([0-9\s:/]+\)", "[2ud0\s]+?", float, float)
+    conf_re, conf_conv = rex.join_re(confs_re_raw)
+
+    def find(regex, txt):
+        return int(re.search(regex, txt).groups()[0])
+
+    state = find(state_re, text)
+    jobiph = find(jobiph_re, text)
+    root = find(root_re, text)
+    confs_raw = re.findall(conf_re, text)
+    confs = [[cv(cf)
+             for cv, cf
+             in zip(conf_conv, conf)] for conf in confs_raw]
+    id_tpl = (state, jobiph, root)
+
+    return id_tpl, confs
+
+
+def parse_rassi(text):
+    states_regex = "READCI called for(.+?)\*"
+    raw_states = re.findall(states_regex, text, re.DOTALL)
+    states_dict = OrderedDict()
+    for raw_state in raw_states:
+        id_tpl, confs = parse_state(raw_state)
+        if id_tpl not in states_dict:
+            states_dict[id_tpl] = confs
+    id_tpls, confs = zip(*[(key, states_dict[key])
+                           for key in states_dict])
+
     lines = text.split("\n")
-
-    rassi_re_tpl = (int, "\([0-9\s:/]+\)", "[2ud0\s]+", float, float)
-    rassi_re, rassi_conv = rex.join_re(rassi_re_tpl)
-    # List of tuples
-    rassi_raw = rex.match_lines(lines, rassi_re, rassi_conv)
-    # Convert to list of lists
-    rassi_raw = [list(line) for line in rassi_raw]
-
-    state_num_re = "READCI called for state"
-    state_nums = rex.find_ints(text, state_num_re)
-
-    jobiph_num_re = "This is on JobIph nr."
-    jobiph_nums = rex.find_ints(text, jobiph_num_re)
-
-    root_nums_re = "It is root nr."
-    root_nums = rex.find_ints(text, root_nums_re)
-
-    nums_combined = zip(state_nums, jobiph_nums, root_nums)
-
-    # Split according to the configuration number
-    # Iterate over all found lines holding configurations.
-    # If the number of the current configuration is smaller
-    # than the number of the last one a new configuration
-    # is found and appended to a new root.
-    root = list()
-    all_roots = [root, ]
-    last_conf = -1
-    for line in rassi_raw:
-        conf_number = line[0]
-        if conf_number < last_conf:
-            root = list()
-            all_roots.append(root)
-        root.append(line)
-        last_conf = conf_number
-
-    # Only keep unique roots.
-    # This is necessary because MOLCAS prints this shit over and over.
-    already_added = list()
-    unique_roots = list()
-    for i, id_tpl in enumerate(nums_combined):
-        if id_tpl in already_added:
-            continue
-        unique_roots.append(all_roots[i])
-        already_added.append(id_tpl)
-        #print("Added root with {},{}".format(*id_tpl))
-
-    if reverse:
-        for root in unique_roots:
-            for line in root:
-                conf_num, trash, conf, ci, weight = line
-                conf_split = conf.split()
-                conf = " ".join([irrep[::-1] for irrep in conf_split])
-                line[2] = conf
-
-    for i, root in enumerate(unique_roots):
-        state, jobiph, root_num = already_added[i]
-        for ji, irrep, a, b in swap:
-            if ji == jobiph:
-                for line in root:
-                    conf_num, trash, conf, ci, weight = line
-                    conf_split = conf.split()
-                    conf_by_irrep = conf_split[irrep]
-                    swapped = swap_chars_in_str(conf_by_irrep, a, b)
-                    conf_split[irrep] = swapped
-                    conf = " ".join(conf_split)
-                    line[2] = conf
-
     # Get dipole transition strengths
     trans_tpl = (int, int, float, float, float, float, float)
     trans_re, trans_conv = rex.join_re(trans_tpl)
@@ -187,10 +151,10 @@ def parse_rassi(text, reverse, swap):
 
     # Now reorder the roots and their indices
     # trans and energies are already in the right order
-    unique_roots = np.array(unique_roots)[inds]
-    already_added = np.array(already_added)[inds]
+    confs = np.array(confs)[inds]
+    id_tpls = np.array(id_tpls)[inds]
 
-    return unique_roots, already_added, trans, energies
+    return confs, id_tpls, trans, energies
 
 
 def make_trans_dict(trans):
@@ -319,11 +283,11 @@ def conf_diff(c1, c2):
 
     return mo_pairs
 
-def run(fn, active_spaces, reverse, swap):
+def run(fn, active_spaces):
     with open(fn) as handle:
         text = handle.read()
 
-    roots, root_ids, trans, energies, = parse_rassi(text, reverse, swap)
+    roots, root_ids, trans, energies, = parse_rassi(text)
 
     # Create dictionary for easy lookup holding the
     # oscillator strengths with 'from,to' as keys
@@ -500,20 +464,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse a &rassi-output" \
                                      " from MOLCAS.")
     parser.add_argument("fn", help="Filename of the RASSI-file.")
-    parser.add_argument("--rev", action="store_true",
-                        help="Reverse the string holding the configuration.")
-    parser.add_argument("--swap", type=int, nargs="+",
-                        help="""Indices to swap in the f***ing scrambled 
-                             configuration line. Expecting groups of 4
-                             integers. The first determines to JobIph to
-                             be used for the swapping. The next determines
-                             the irrep. The last two integers are the
-                             indices to be swapped in the configuration string
-                             of the irrep. The numbering of the last three
-                             integers starts at 0.
-                             --swap 2 1 0 6
-                             swaps the first char with the seventh char
-                             in the irrep 1 in the 2nd Jobfile.""")
     parser.add_argument("--spectrum", nargs=2, type=float,
                         help="Output an spectrum.")
     parser.add_argument("--booktabs", action="store_true",
@@ -526,12 +476,6 @@ if __name__ == "__main__":
             help="Export data to a .html-file.")
     args = parser.parse_args()
     fn = args.fn
-    rev = args.rev
-
-    if args.swap:
-        swap = list(chunks(args.swap, 4))
-    else:
-        swap = list()
 
     try:
         verbose_fn = os.path.splitext(fn)[0] + ".json"
@@ -558,7 +502,7 @@ if __name__ == "__main__":
         irreps = {i: "A" for i in range(8)}
         logging.warning("Irrep-Hack used!")
 
-    output, verbose_confs_dict = run(fn, active_spaces, rev, swap)
+    output, verbose_confs_dict = run(fn, active_spaces)
 
     output_headers = ("State", "JobIph", "Root", "E in a.u.",
         "dErel in eV", "Erel in nm", "f")
