@@ -264,9 +264,6 @@ def conf_diff(c1, c2):
         "d": "u"
     }
 
-    #print from_mos
-    #print to_mos
-    #print mo_pairs
     if (len(from_mos) >= 2) or (len(to_mos) >= 2):
         logging.warning("Double excitations not supported!")
         return list()

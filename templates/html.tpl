@@ -10,8 +10,10 @@
                 margin-bottom: 2%;
             }
             .mo {
-                height: 10%;
-                width: 10%;
+                height: 15%;
+                min-height: 10em;
+                width: 15%;
+                min-width: 10em;
                 border: 1px solid #000000;
                 padding: 1%;
             }
