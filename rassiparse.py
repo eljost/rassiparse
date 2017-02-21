@@ -209,6 +209,15 @@ def one_by_one_diff(str1, str2):
     return diffs
 
 
+def flip_spins(diffs):
+    """Replace ['- 2', '+ u'] with ['- 2', '+ d'] to fake closed shells."""
+    flipped_diffs = diffs
+    for i in range(len(diffs) - 1):
+        if (diffs[i] == "- 2") and (diffs[i+1] == "+ u"):
+            flipped_diffs[i+1] = "+ d"
+    return flipped_diffs
+
+
 def conf_diff(c1, c2):
     """Compute transitions between two configurations that are outputted
     by MOLCAS &rasscf calculations.
@@ -235,6 +244,16 @@ def conf_diff(c1, c2):
     occ_indices = [i for i, mo in enumerate(c1) if (mo is "2")]
 
     diffs = one_by_one_diff(c1, c2)
+    # If we have an open shell configuration then we
+    # fake a closed shell configuration by flipping
+    # spins from 'u' to 'd' in orbitals that are doubly
+    # occupied in the closed shell configuration.
+    #
+    # Basically we replace sublists that look like this
+    # ['- 2', '+ u'] with ['- 2', '+ d']
+    if ("u" in c2) and not ("d" in c2):
+        logging.info("Open shell configuration found!")
+        diffs = flip_spins(diffs)
     offset = 0
     for i, d in enumerate(diffs):
         # Modify index i with offset because ndiff also outputs
@@ -296,6 +315,7 @@ def run(fn, active_spaces):
     energies_rel = np.array(energies) - energies[0]
 
     ground_state_conf = significant_confs(roots[0])[0][2]
+    assert(("d" not in ground_state_conf) and ("u" not in ground_state_conf))
 
     """
     # Search for a singlet ground state configuration in the first
