@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
+import argparse
 import re
 
 from matplotlib.lines import Line2D
@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+from rassiparse import significant_confs, conf_diff
 from SFState import SFState
 from SOState import SOState
 
@@ -31,10 +32,26 @@ def parse_sorassi(text):
     # Spin-free section
     sf_state_re = "state\s*(\d+).+?symmetry\s*=\s*(\d+).+?Spin multiplic=\s*(\d+)"
     sf_states_lists = re.findall(sf_state_re, text, re.DOTALL)
+    conf_block_re = "Coef\s*Weight\s*(.+?)\*\*"
+    conf_blocks = [conf_block.strip() for conf_block
+                   in re.findall(conf_block_re, text, re.DOTALL)]
+    conv_confs = list()
+    for cb in conf_blocks:
+        cut_conf = [re.sub(".+\)", "", line) for line in cb.split("\n")]
+        conv_conf = list()
+        for cc in cut_conf:
+            *occ, coef, weight = cc.split()
+            occ = "".join(occ)
+            coef = float(coef)
+            weight = float(weight)
+            conv_conf.append((occ, coef, weight))
+        conv_confs.append(conv_conf)
+    assert(len(sf_states_lists) == len(conv_confs))
     # Transform sf_states into a dict
     # State: (symmetry, multiplicity)
-    sf_states_dict = {int(id): (int(sym), int(mult))
-                      for id, sym, mult in sf_states_lists}
+    sf_states_dict = {int(id): (int(sym), int(mult), confs)
+                      for (id, sym, mult), confs
+                      in zip(sf_states_lists, conv_confs)}
 
     sf_energies_re = "SF State.+?\n(.+?)\+\+"
     sf_energies_lists = get_block_lines(text, sf_energies_re)
@@ -43,8 +60,8 @@ def parse_sorassi(text):
     #sf_energies = normalize_energies(sf_energies)
     sf_states = list()
     for key in sf_states_dict:
-        sym, mult = sf_states_dict[key]
-        sf_state = SFState(key, sym, mult, sf_energies[key-1])
+        sym, mult, confs = sf_states_dict[key]
+        sf_state = SFState(key, sym, mult, sf_energies[key-1], confs)
         sf_states.append(sf_state)
 
     # Spin-orbit section
@@ -55,7 +72,6 @@ def parse_sorassi(text):
     coupling_lists = get_block_lines(so_section, coupling_re)
     couplings = [(int(c[0]), int(c[3]), float(c[8]))
                   for c in coupling_lists]
-    print(couplings)
     # Weights of original states in so-states
     weight_re = "Spin-free states, spin, and weights[\s\-]+(.+?)--"
     weight_lists = get_block_lines(so_section, weight_re)
@@ -98,14 +114,14 @@ def plot_states(sf_states, so_states, couplings=None):
 
     fig, ax = plt.subplots()
     kwargs = dict(color="k", ls=" ", marker="_", ms=40)
-    for i, ens in enumerate((sf_sing_ens, sf_trip_ens,
-                            so_sing_ens, so_trip_ens)):
+    for i, ens in enumerate((sf_sing_ens, so_sing_ens,
+                             so_trip_ens, sf_trip_ens)):
         xs = np.full_like(ens, i)
         ax.plot(xs, ens, **kwargs)
     ax.axhline(y=3.4, color="k", linestyle="--")
     for from_id, to_id, abs_cpl in couplings:
-        from_x = 2 if from_id-1 in so_sing_inds else 3
-        to_x = 2 if to_id-1 in so_sing_inds else 3
+        from_x = 1 if from_id-1 in so_sing_inds else 2
+        to_x = 1 if to_id-1 in so_sing_inds else 2
         from_y = so_ens[from_id-1]
         to_y = so_ens[to_id-1]
         """
@@ -132,10 +148,24 @@ def plot_states(sf_states, so_states, couplings=None):
     ax.set_xlim(-0.5, 3.5)
     plt.show()
 
+def get_ground_state_conf(sf_states):
+    sig_confs = significant_confs(sf_states[0].confs)
+    sig_confs = sorted(sig_confs, key=lambda cf: -cf[-1])
+    return sig_confs[0][0]
+
 if __name__ == "__main__":
-    fn = "/home/carpx/Code/sorassiparse/logs/12_sorassi.out"
+    parser = argparse.ArgumentParser("Parse SO-RASSI-calculations.")
+    parser.add_argument("fn", help="SO-RASSI output to parse.")
+
+    args = parser.parse_args()
+    fn = args.fn
     with open(fn) as handle:
         text = handle.read()
     sf_states, so_states, couplings = parse_sorassi(text)
-    print(couplings)
-    plot_states(sf_states, so_states, couplings)
+    ground_state_conf = get_ground_state_conf(sf_states)
+    print(ground_state_conf)
+    for sf_state in sf_states:
+        sig_confs = significant_confs(sf_state.confs)
+        for conf, coef, weight in sig_confs:
+            mo_pairs = conf_diff(ground_state_conf, conf)
+    #plot_states(sf_states, so_states, couplings)
