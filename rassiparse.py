@@ -355,22 +355,24 @@ def run(fn, active_spaces):
             conf_id, whoot, conf, ci, weight = conf_tpl
             if active_spaces:
                 mo_pairs = conf_diff(ground_state_conf, conf)
-                for from_index, to_index in mo_pairs:
-                    # Convert the key to a string because our dict
-                    # we loaded from the .json-file has string-keys
-                    jobiph_mos = active_spaces[jobiph]
-                    verbose_from = jobiph_mos[from_index]
-                    verbose_to = jobiph_mos[to_index]
-                    # Save information in verbose_confs_dict for later
-                    # printing.
-                    # Use a tuple holding the jobiph number and the root
-                    # as key.
-                    id_tpl = (jobiph, root_num)
-                    verbose_tpl = (verbose_from, verbose_to, weight)
-                    try:
-                        verbose_confs_dict[id_tpl].append(verbose_tpl)
-                    except KeyError:
-                        verbose_confs_dict[id_tpl] = [verbose_tpl, ]
+                if not mo_pairs:
+                    continue
+                from_index, to_index = mo_pairs
+                # Convert the key to a string because our dict
+                # we loaded from the .json-file has string-keys
+                jobiph_mos = active_spaces[jobiph]
+                verbose_from = jobiph_mos[from_index]
+                verbose_to = jobiph_mos[to_index]
+                # Save information in verbose_confs_dict for later
+                # printing.
+                # Use a tuple holding the jobiph number and the root
+                # as key.
+                id_tpl = (jobiph, root_num)
+                verbose_tpl = (verbose_from, verbose_to, weight)
+                try:
+                    verbose_confs_dict[id_tpl].append(verbose_tpl)
+                except KeyError:
+                    verbose_confs_dict[id_tpl] = [verbose_tpl, ]
 
     # Create output table
     output = list()

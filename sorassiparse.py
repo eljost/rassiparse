@@ -11,7 +11,6 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 from rassiparse import significant_confs, conf_diff, load_json
 from SFState import SFState
 from SOState import SOState
@@ -27,7 +26,6 @@ def get_block_lines(text, regex):
 def normalize_energies(energies):
     energies = np.array(energies, dtype=np.float)
     energies -= energies.min()
-    #energies *= 27.2114
     return energies
 
 
@@ -132,6 +130,22 @@ def split_states(states):
     return sing_ens, sing_inds, trip_ens, trip_inds, all_ens
 
 
+def fuse_labels(ax, x, ys, labels):
+    ys_diffs = np.array([ys[i+1]-ys[i] for i in range(len(ys)-1)])
+    rel_diffs = ys_diffs / ys[1:]
+    new_ys = [ys[0], ]
+    new_labels = [labels[0], ]
+    for i, yd in enumerate(rel_diffs, 1):
+        if abs(yd) < 0.01:
+            new_labels[-1] += " ," + labels[i]
+        else:
+            new_ys.append(ys[i])
+            new_labels.append(labels[i])
+
+    for y, l in zip(new_ys, new_labels):
+        ax.text(x, y, l, va="center")
+
+
 def plot_states(sf_states, so_states, couplings=None):
     # Spin-free states
     (sf_sing_ens, sf_sing_inds,
@@ -141,14 +155,32 @@ def plot_states(sf_states, so_states, couplings=None):
      so_trip_ens, so_trip_inds, so_ens) = split_states(so_states)
 
     fig, ax = plt.subplots()
+    ax.set_ylabel("deltaE / eV")
+    ax.set_xlabel("States")
+    xlabels = ["SF singlet", "SO singlet", "SO triplet", "SF triplet"]
+    ax.set_xticks(range(4))
+    ax.set_xticklabels(xlabels)
     kwargs = dict(color="k", ls=" ", marker="_", ms=40)
+    inds = (sf_sing_inds, so_sing_inds, so_trip_inds, sf_trip_inds)
     for i, ens in enumerate((sf_sing_ens, so_sing_ens,
                              so_trip_ens, sf_trip_ens)):
         xs = np.full_like(ens, i)
         ax.plot(xs, ens, **kwargs)
+        # Add label
+        label_bases = ("S{}", "SO{}", "SO{}", "T{}")
+        labels = [label_bases[i].format(ind+1) for ind in inds[i]]
+        fuse_labels(ax, i+.05, ens, labels)
+        """
+        for lx, ly, ind in zip(label_xs, ens, inds[i]):
+            label_base = label_bases[i]
+            ax.text(lx, ly, label_base.format(ind))
+        """
+
     # Horizontal lines at 405 and 365 nm
     ax.axhline(y=3.4, color="k", linestyle="--")
     ax.axhline(y=3.06, color="k", linestyle="--")
+
+    # Add couplings
     for from_id, to_id, abs_cpl in couplings:
         from_x = 1 if from_id-1 in so_sing_inds else 2
         to_x = 1 if to_id-1 in so_sing_inds else 2
@@ -169,6 +201,7 @@ def plot_states(sf_states, so_states, couplings=None):
     # The first two singlet states are not shown
     #ax.set_ylim((all_ens.min()*.9, all_ens.max()*1.1))
     ax.set_xlim(-0.5, 3.5)
+    plt.tight_layout()
     plt.show()
 
 
