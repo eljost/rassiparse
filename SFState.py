@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 
 
-class SFState:
+from State import State
 
-    def __init__(self, id, symmetry, multiplicity, energy, confs):
-        self.id = id
+class SFState(State):
+
+    def __init__(self, id, symmetry, multiplicity, Eau, confs):
+        super(SFState, self).__init__(id, Eau)
         self.symmetry = symmetry
-        self.energy = energy
         self.multiplicity = multiplicity
         self.confs = confs
 

@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import logging
+import os
 import re
 
 from matplotlib.lines import Line2D
@@ -9,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-from rassiparse import significant_confs, conf_diff
+from rassiparse import significant_confs, conf_diff, load_json
 from SFState import SFState
 from SOState import SOState
 
@@ -24,7 +26,7 @@ def get_block_lines(text, regex):
 def normalize_energies(energies):
     energies = np.array(energies, dtype=np.float)
     energies -= energies.min()
-    energies *= 27.2114
+    #energies *= 27.2114
     return energies
 
 
@@ -56,6 +58,7 @@ def parse_sorassi(text):
     sf_energies_re = "SF State.+?\n(.+?)\+\+"
     sf_energies_lists = get_block_lines(text, sf_energies_re)
     sf_states, sf_energies, *_ = zip(*sf_energies_lists)
+    sf_energies = normalize_energies(sf_energies)
     sf_states = np.array(sf_states, dtype=np.int)
     #sf_energies = normalize_energies(sf_energies)
     sf_states = list()
@@ -75,23 +78,44 @@ def parse_sorassi(text):
     # Weights of original states in so-states
     weight_re = "Spin-free states, spin, and weights[\s\-]+(.+?)--"
     weight_lists = get_block_lines(so_section, weight_re)
+    # Convert 'weight_lists' to an array and pull out the energies
+    # to normalize them, that is setting the ground state energy to
+    # 0.0 au
     weight_array = np.array(weight_lists, dtype=np.float)
+    so_energies = weight_array[:, 1]
+    weight_array[:, 1] = normalize_energies(so_energies)
     # Transition moments
     trans_re = "Total A \(sec-1\)[\s\-]+(.+?)--"
     trans_lists = get_block_lines(so_section, trans_re)
+    from_ids, to_ids, oscs, *_ = zip(*trans_lists)
+    oscs = [float(osc) for osc in oscs]
+    # Check out if MOLCAS left out any transitions.
+    to_ids = [int(to_id) for from_id, to_id
+              in zip(from_ids, to_ids)
+              # This gives us only excitations from the GS
+              if from_id == "1"]
+    # If we got 40 SO states we expect ids from 2..40
+    expected_ids = range(2, len(weight_lists)+1)
+    missing_ids = set(expected_ids) - set(to_ids)
+    for mid in missing_ids:
+        logging.warning("No transition for 1->{} found!".format(mid))
+        # Insert f=-1 to symbolize the missing transition
+        oscs.insert(mid-2, -1)
+    # We expect len(expected_ids) oscillator strengths, because we
+    # got no transition between the ground state and itself.
+    oscs = oscs[:len(expected_ids)]
 
     so_states = list()
-    for row in weight_array:
-        id, so_energy, *weight_line = row
-        so_state = SOState(id, so_energy, weight_line)
+    for row, osc in zip(weight_array, oscs):
+        so_id, so_energy, *so_weight_line = row
+        so_state = SOState(so_id, so_energy, so_weight_line, osc)
         so_states.append(so_state)
 
     return sf_states, so_states, couplings
 
 
 def split_states(states):
-    all_ens = np.array([state.energy for state in states])
-    all_ens = normalize_energies(all_ens)
+    all_ens = np.array([state.EeV for state in states])
 
     sing_inds = [i for i, state in enumerate(states)
                  if state.spin == 0.0]
@@ -118,7 +142,9 @@ def plot_states(sf_states, so_states, couplings=None):
                              so_trip_ens, sf_trip_ens)):
         xs = np.full_like(ens, i)
         ax.plot(xs, ens, **kwargs)
+    # Horizontal lines at 405 and 365 nm
     ax.axhline(y=3.4, color="k", linestyle="--")
+    ax.axhline(y=3.06, color="k", linestyle="--")
     for from_id, to_id, abs_cpl in couplings:
         from_x = 1 if from_id-1 in so_sing_inds else 2
         to_x = 1 if to_id-1 in so_sing_inds else 2
@@ -148,6 +174,7 @@ def plot_states(sf_states, so_states, couplings=None):
     ax.set_xlim(-0.5, 3.5)
     plt.show()
 
+
 def get_ground_state_conf(sf_states):
     sig_confs = significant_confs(sf_states[0].confs)
     sig_confs = sorted(sig_confs, key=lambda cf: -cf[-1])
@@ -168,4 +195,9 @@ if __name__ == "__main__":
         sig_confs = significant_confs(sf_state.confs)
         for conf, coef, weight in sig_confs:
             mo_pairs = conf_diff(ground_state_conf, conf)
-    #plot_states(sf_states, so_states, couplings)
+            print(mo_pairs)
+    plot_states(sf_states, so_states, couplings)
+    active_spaces, imgs, irreps = load_json(fn)
+    print(active_spaces)
+    print(imgs)
+    print(irreps)

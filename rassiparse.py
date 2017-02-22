@@ -477,6 +477,47 @@ def make_html(output, verbose_confs, irreps, fn_base, imgs):
         handle.write(rendered)
 
 
+def get_img_nums(path):
+    png_fns = [f for f in os.listdir(path) if f.endswith(".png")]
+    mo_mobjs = [re.match("mo_(\d+).+\.png", png) for png in png_fns]
+    mo_nums = [int(mobj.groups()[0]) for mobj in mo_mobjs]
+    mo_nums = sorted(list(set(mo_nums)))
+    return mo_nums
+
+
+def load_json(fn):
+    verbose_fn = os.path.splitext(fn)[0] + ".json"
+    try:
+        with open(verbose_fn) as handle:
+            json_data = json.load(handle, object_pairs_hook=OrderedDict)
+    except IOError:
+        active_spaces = None
+        # When no .json file is defined try to look for pictures in the
+        # current directory and try to use them.
+        imgs = get_img_nums(".")
+        # Create a fake 'irreps' dict were all jobiphs belong to
+        # the totalsymmetric irrep 'A'
+        irreps = {i: "A" for i in range(8)}
+        logging.warning("Irrep-Hack used!")
+        return active_spaces, imgs, irreps
+
+    active_spaces = {int(key): json_data[key]["as"] for key in json_data}
+    irreps = {int(key): json_data[key]["irrep"] for key in json_data}
+    imgs = dict()
+    for key in json_data:
+        for_jobiph = json_data[key]
+        if len(irreps) > 1:
+            img_fns = ["mo_{}.irrep{}.png".format(img, key)
+                       for img in for_jobiph["imgs"]]
+        else:
+            img_fns = ["mo_{}.png".format(img) for img in for_jobiph["imgs"]]
+        as_ = for_jobiph["as"]
+        img_dict = {mo: img_fn for mo, img_fn in zip(as_, img_fns)}
+        imgs[int(key)] = img_dict
+
+    return active_spaces, imgs, irreps
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse a &rassi-output" \
                                      " from MOLCAS.")
@@ -494,33 +535,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     fn = args.fn
 
-    try:
-        verbose_fn = os.path.splitext(fn)[0] + ".json"
-        with open(verbose_fn) as handle:
-            json_data = json.load(handle, object_pairs_hook=OrderedDict)
-            active_spaces = {int(key): json_data[key]["as"] for key in json_data}
-            irreps = {int(key): json_data[key]["irrep"] for key in json_data}
-            imgs = dict()
-            for key in json_data:
-                for_jobiph = json_data[key]
-                if len(irreps) > 1:
-                    img_fns = ["mo_{}.irrep{}.png".format(img, key)
-                               for img in for_jobiph["imgs"]]
-                else:
-                    img_fns = ["mo_{}.png".format(img) for img in for_jobiph["imgs"]]
-                as_ = for_jobiph["as"]
-                img_dict = {mo: img_fn for mo, img_fn in zip(as_, img_fns)}
-                imgs[int(key)] = img_dict
-    except IOError:
-        active_spaces = None
-        imgs = None
-        # Create a fake 'irreps' dict were all jobiphs belong to
-        # the totalsymmetric irrep 'A'
-        irreps = {i: "A" for i in range(8)}
-        logging.warning("Irrep-Hack used!")
-
+    active_spaces, imgs, irreps = load_json(fn)
     output, verbose_confs_dict = run(fn, active_spaces)
-
     output_headers = ("State", "JobIph", "Root", "E in a.u.",
         "dErel in eV", "Erel in nm", "f")
     output_headers = ("JobIph", "Root", "dE in eV", "dE in nm", "f")
