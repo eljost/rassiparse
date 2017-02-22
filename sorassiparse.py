@@ -6,6 +6,7 @@ import logging
 import os
 import re
 
+from jinja2 import Environment, FileSystemLoader
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,7 +33,10 @@ def normalize_energies(energies):
 
 def parse_sorassi(text):
     # Spin-free section
-    sf_state_re = "state\s*(\d+).+?symmetry\s*=\s*(\d+).+?Spin multiplic=\s*(\d+)"
+    sf_state_re = ("state\s*(\d+)"
+                   ".+?JobIph nr\.\s*(\d+)"
+                   ".+?symmetry\s*=\s*(\d+)"
+                   ".+?Spin multiplic=\s*(\d+)")
     sf_states_lists = re.findall(sf_state_re, text, re.DOTALL)
     conf_block_re = "Coef\s*Weight\s*(.+?)\*\*"
     conf_blocks = [conf_block.strip() for conf_block
@@ -51,8 +55,8 @@ def parse_sorassi(text):
     assert(len(sf_states_lists) == len(conv_confs))
     # Transform sf_states into a dict
     # State: (symmetry, multiplicity)
-    sf_states_dict = {int(id): (int(sym), int(mult), confs)
-                      for (id, sym, mult), confs
+    sf_states_dict = {int(id): (int(jobiph), int(sym), int(mult), confs)
+                      for (id, jobiph, sym, mult), confs
                       in zip(sf_states_lists, conv_confs)}
 
     sf_energies_re = "SF State.+?\n(.+?)\+\+"
@@ -60,11 +64,10 @@ def parse_sorassi(text):
     sf_states, sf_energies, *_ = zip(*sf_energies_lists)
     sf_energies = normalize_energies(sf_energies)
     sf_states = np.array(sf_states, dtype=np.int)
-    #sf_energies = normalize_energies(sf_energies)
     sf_states = list()
     for key in sf_states_dict:
-        sym, mult, confs = sf_states_dict[key]
-        sf_state = SFState(key, sym, mult, sf_energies[key-1], confs)
+        jobiph, sym, mult, confs = sf_states_dict[key]
+        sf_state = SFState(key, sf_energies[key-1], jobiph, sym, mult, confs)
         sf_states.append(sf_state)
 
     # Spin-orbit section
@@ -98,7 +101,7 @@ def parse_sorassi(text):
     expected_ids = range(2, len(weight_lists)+1)
     missing_ids = set(expected_ids) - set(to_ids)
     for mid in missing_ids:
-        logging.warning("No transition for 1->{} found!".format(mid))
+        logging.warning("No transition for SO states 1->{} found!".format(mid))
         # Insert f=-1 to symbolize the missing transition
         oscs.insert(mid-2, -1)
     # We expect len(expected_ids) oscillator strengths, because we
@@ -119,6 +122,7 @@ def split_states(states):
 
     sing_inds = [i for i, state in enumerate(states)
                  if state.spin == 0.0]
+    spins = [state.spin for state in states]
     trip_inds = [i for i, state in enumerate(states)
                  if state.spin == 1.0]
     sing_ens = all_ens[sing_inds]
@@ -150,13 +154,6 @@ def plot_states(sf_states, so_states, couplings=None):
         to_x = 1 if to_id-1 in so_sing_inds else 2
         from_y = so_ens[from_id-1]
         to_y = so_ens[to_id-1]
-        """
-        ax.annotate(str(coupling_abs),
-                    xy=(to_x, to_y), xycoords="data",
-                    #textcoords="offset points",
-                    xytext=(from_x, from_y),
-                    arrowprops=dict(arrowstyle="<->"))
-        """
         ax.add_line(Line2D((from_x, to_x),
                            (from_y, to_y)))
         x_text = -0.1 + from_x + (to_x - from_x) / 2
@@ -180,6 +177,39 @@ def get_ground_state_conf(sf_states):
     sig_confs = sorted(sig_confs, key=lambda cf: -cf[-1])
     return sig_confs[0][0]
 
+
+def make_html(states, sf_trans_dict):
+    this_dir = os.path.dirname(os.path.realpath(__file__))
+    j2_env = Environment(loader=FileSystemLoader(this_dir,
+                                                 followlinks=True))
+    tpl = j2_env.get_template("templates/sohtml.tpl")
+    rendered = tpl.render(states=states,
+                          sf_trans_dict=sf_trans_dict)
+    out_fn = os.path.join(
+                os.getcwd(), "sorassi" + ".html")
+    with open(out_fn, "w") as handle:
+        handle.write(rendered)
+
+
+def make_img_dict(sf_states, imgs, gs_conf):
+    img_dict = dict()
+    mo_fn_base = "mo_{}.irrep{}.png"
+    for sf_state in sf_states:
+        for conf, coef, weight in significant_confs(sf_state.confs):
+            mo_pair = conf_diff(gs_conf, conf)
+            if not mo_pair:
+                continue
+            from_mo, to_mo = mo_pair
+            from_img = imgs[from_mo]
+            to_img = imgs[to_mo]
+            # Construct filenames
+            from_fn = mo_fn_base.format(from_img, sf_state.jobiph)
+            to_fn = mo_fn_base.format(to_img, sf_state.jobiph)
+            img_dict.setdefault(sf_state.id, list()).append(
+                (from_fn, to_fn, weight)
+            )
+    return img_dict
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Parse SO-RASSI-calculations.")
     parser.add_argument("fn", help="SO-RASSI output to parse.")
@@ -189,15 +219,8 @@ if __name__ == "__main__":
     with open(fn) as handle:
         text = handle.read()
     sf_states, so_states, couplings = parse_sorassi(text)
-    ground_state_conf = get_ground_state_conf(sf_states)
-    print(ground_state_conf)
-    for sf_state in sf_states:
-        sig_confs = significant_confs(sf_state.confs)
-        for conf, coef, weight in sig_confs:
-            mo_pairs = conf_diff(ground_state_conf, conf)
-            print(mo_pairs)
+    gs_conf = get_ground_state_conf(sf_states)
     plot_states(sf_states, so_states, couplings)
     active_spaces, imgs, irreps = load_json(fn)
-    print(active_spaces)
-    print(imgs)
-    print(irreps)
+    img_trans_dict = make_img_dict(sf_states, imgs, gs_conf)
+    make_html(so_states, img_trans_dict)

@@ -238,7 +238,7 @@ def conf_diff(c1, c2):
     # Prepare lists that hold the information about the transitions
     from_mos = list()
     to_mos = list()
-    mo_pairs = list()
+    mo_pairs = ()
 
     # Determine occupied orbitals
     occ_indices = [i for i, mo in enumerate(c1) if (mo is "2")]
@@ -292,7 +292,8 @@ def conf_diff(c1, c2):
         for to_tpl in to_mos:
             j, to_spin = to_tpl
             if to_spin is spin_pairs[from_spin]:
-                mo_pairs.append((i, j))
+                #mo_pairs.append((i, j))
+                mo_pairs = (i, j)
                 from_mos.remove(from_tpl)
                 to_mos.remove(to_tpl)
                 continue
