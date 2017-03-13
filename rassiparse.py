@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from collections import OrderedDict
+from collections import namedtuple, OrderedDict
 import logging
+logging.basicConfig(level=logging.INFO)
 import os.path
 import re
 import sys
@@ -19,6 +20,9 @@ import td
 
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+
+SpinFreeState = namedtuple("SpinFreeState",
+                           ["state", "jobiph", "root", "sym", "mult", "confs"])
 
 
 def make_docx(output, verbose_confs_dict, irreps, fn_base):
@@ -90,6 +94,8 @@ def parse_state(text):
     state_re = "state\s*(\d+)"
     jobiph_re = "JobIph nr.\s*(\d+)"
     root_re = "It is root nr.\s*(\d+)"
+    sym_re = "Its symmetry  =\s*(\d+)"
+    mult_re = "Spin multiplic=\s*(\d+)"
     confs_re_raw = (int, "\([0-9\s:/]+\)", "[2ud0\s]+?", float, float)
     conf_re, conf_conv = rex.join_re(confs_re_raw)
 
@@ -99,25 +105,40 @@ def parse_state(text):
     state = find(state_re, text)
     jobiph = find(jobiph_re, text)
     root = find(root_re, text)
+    sym = find(sym_re, text)
+    mult = find(mult_re, text)
     confs_raw = re.findall(conf_re, text)
     confs = [[cv(cf)
              for cv, cf
              in zip(conf_conv, conf)] for conf in confs_raw]
-    id_tpl = (state, jobiph, root)
+    sfs = SpinFreeState(
+            state=state,
+            jobiph=jobiph,
+            root=root,
+            sym=sym,
+            mult=mult,
+            confs=confs
+    )
 
-    return id_tpl, confs
+    return sfs
 
 
 def parse_rassi(text):
     states_regex = "READCI called for(.+?)\*"
     raw_states = re.findall(states_regex, text, re.DOTALL)
-    states_dict = OrderedDict()
-    for raw_state in raw_states:
-        id_tpl, confs = parse_state(raw_state)
-        if id_tpl not in states_dict:
-            states_dict[id_tpl] = confs
-    id_tpls, confs = zip(*[(key, states_dict[key])
-                           for key in states_dict])
+    all_sf_states = [parse_state(raw_state) for raw_state
+                 in raw_states]
+    # Only keep unique states
+    unique_state_ids = list()
+    sf_states = list()
+    for sfs in all_sf_states:
+        state = sfs.state
+        if state in unique_state_ids:
+            continue
+        sf_states.append(sfs)
+        unique_state_ids.append(sfs.state)
+    logging.info("Found {} states.".format(len(sf_states)))
+
 
     lines = text.split("\n")
     # Get dipole transition strengths
@@ -132,7 +153,7 @@ def parse_rassi(text):
     # Check if RASSI changed the ordering of the states. For this
     # compare the ordering in "HAMILTON MATRIX FOR THE ORIGINAL
     # STATES" to the ordering in the "RASSI State" table and
-    # swap roots accordingly
+    # swap roots accordingly.
     org_ens_regex = "\s+HAMILTONIAN MATRIX FOR THE ORIGINAL STATES:.+" \
                     "\s+Diagonal, with energies\n" \
                     "(.+)" \
@@ -148,13 +169,16 @@ def parse_rassi(text):
     inds = [energies.index(oe) for oe in org_ens]
     if inds != list(range(len(inds))):
         logging.warning("Swapping of states detected!")
+        sys.exit()
 
+    """
     # Now reorder the roots and their indices
     # trans and energies are already in the right order
     confs = np.array(confs)[inds]
     id_tpls = np.array(id_tpls)[inds]
+    """
 
-    return confs, id_tpls, trans, energies
+    return sf_states, trans, energies
 
 
 def make_trans_dict(trans):
@@ -304,33 +328,34 @@ def run(fn, active_spaces):
     with open(fn) as handle:
         text = handle.read()
 
-    roots, root_ids, trans, energies, = parse_rassi(text)
+    sf_states, trans, energies = parse_rassi(text)
     energies = np.array(energies)
 
     # Create dictionary for easy lookup holding the
     # oscillator strengths with 'from,to' as keys
     trans_dict = make_trans_dict(trans)
     trs_dct = lambda root: trans_dict["1,{}".format(root)]
-    # Sort roots by ci coefficient
-    roots = [sort_by_ci_coeff(root) for root in roots]
     # Energies relative to the ground state
     gs_energy = energies.min()
     gs_index_arr = np.where(energies==gs_energy)[0]
     assert (gs_index_arr.size == 1), "Degenerate ground state found!"
+    # Determine ground state based on state with minimum energy
     gs_index = gs_index_arr[0]
-    energies_rel = np.array(energies) - gs_energy
+    gs_conf_line = significant_confs(sf_states[gs_index].confs)[0]
+    gs_conf = gs_conf_line[2]
+    gs_weight = gs_conf_line[4]
+    logging.info("Found {} GS configuration ({:.1%}) in root {}.".format(
+        gs_conf, gs_weight, gs_index+1))
 
-    # Determine ground state based on energies of the states
-    gs_conf = significant_confs(roots[gs_index])[0][2]
-    logging.info("Found {} GS configuration.".format(gs_conf))
+    # Set energy minimum to 0 au
+    energies_rel = np.array(energies) - gs_energy
 
     # Create a dict to hold verbose information about the
     # configurations for later printing
     verbose_confs_dict = dict()
-    for i, root in enumerate(roots):
-        state_num, jobiph, root_num = root_ids[i]
+    for i, sfs in enumerate(sf_states):
         # Filter for configurations with CI coefficients >= 0.2 (8%)
-        conf_tpls = significant_confs(root)
+        conf_tpls = significant_confs(sfs.confs)
         for conf_tpl in conf_tpls:
             conf_id, whoot, conf, ci, weight = conf_tpl
             if active_spaces:
@@ -340,7 +365,7 @@ def run(fn, active_spaces):
                 from_index, to_index = mo_pairs
                 # Convert the key to a string because our dict
                 # we loaded from the .json-file has string-keys
-                jobiph_mos = active_spaces[jobiph]
+                jobiph_mos = active_spaces[sfs.jobiph]
                 verbose_from = jobiph_mos[from_index]
                 verbose_to = jobiph_mos[to_index]
                 # Save information in verbose_confs_dict for later
@@ -356,13 +381,12 @@ def run(fn, active_spaces):
 
     # Create output table
     output = list()
-    for i in range(len(energies)):
-        state, jobiph, root = root_ids[i]
+    for i, sfs in enumerate(sf_states):
         try:
             output.append((
-                state,
-                jobiph,
-                root,
+                sfs.state,
+                sfs.jobiph,
+                sfs.root,
                 energies[i],
                 hartree2eV(energies_rel[i]),
                 hartree2nm(energies_rel[i]),
