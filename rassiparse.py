@@ -305,6 +305,7 @@ def run(fn, active_spaces):
         text = handle.read()
 
     roots, root_ids, trans, energies, = parse_rassi(text)
+    energies = np.array(energies)
 
     # Create dictionary for easy lookup holding the
     # oscillator strengths with 'from,to' as keys
@@ -313,37 +314,16 @@ def run(fn, active_spaces):
     # Sort roots by ci coefficient
     roots = [sort_by_ci_coeff(root) for root in roots]
     # Energies relative to the ground state
-    energies_rel = np.array(energies) - energies[0]
+    gs_energy = energies.min()
+    gs_index_arr = np.where(energies==gs_energy)[0]
+    assert (gs_index_arr.size == 1), "Degenerate ground state found!"
+    gs_index = gs_index_arr[0]
+    energies_rel = np.array(energies) - gs_energy
 
-    ground_state_conf = significant_confs(roots[0])[0][2]
-    assert(("d" not in ground_state_conf) and ("u" not in ground_state_conf))
+    # Determine ground state based on energies of the states
+    gs_conf = significant_confs(roots[gs_index])[0][2]
+    logging.info("Found {} GS configuration.".format(gs_conf))
 
-    """
-    # Search for a singlet ground state configuration in the first
-    # root.
-    sig_confs = significant_confs(roots[0], thresh=0.0)
-    closed_shell_confs = [(conf, weight) for _, __, conf, ci, weight
-                          in sig_confs
-                          if ("d" not in conf) and ("u" not in conf)]
-    hf_regex_str = "(2+)(0+)"
-    ground_state_conf = None
-    for cs_conf in closed_shell_confs:
-        conf, weight = cs_conf
-        match_objs = [re.match(hf_regex_str, per_irrep)
-                      for per_irrep
-                      in conf.split()]
-        groups = [mo.groups() for mo in match_objs]
-        # Reconstruct configuration
-        g2, g0 = match_obj.groups()
-        if g2+g0 == conf:
-            ground_state_conf = conf
-    if ground_state_conf != sig_confs[0][2]:
-        logging.warning("HF configuration doesn't have the highest weight"
-                        " in the ground state!")
-    if not ground_state_conf:
-        logging.error("Couldn't determine a HF configuration!")
-        sys.exit()
-    """
     # Create a dict to hold verbose information about the
     # configurations for later printing
     verbose_confs_dict = dict()
@@ -354,7 +334,7 @@ def run(fn, active_spaces):
         for conf_tpl in conf_tpls:
             conf_id, whoot, conf, ci, weight = conf_tpl
             if active_spaces:
-                mo_pairs = conf_diff(ground_state_conf, conf)
+                mo_pairs = conf_diff(gs_conf, conf)
                 if not mo_pairs:
                     continue
                 from_index, to_index = mo_pairs
