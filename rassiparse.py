@@ -341,6 +341,26 @@ def conf_diff(c1, c2):
     return mo_pairs
 
 
+def get_electron_spins(occ_1, occ_2):
+    """Takes two occupation labels ("0", "u", "d", "2") as argument
+    and returns the spin(s) of the electron(s) that can produce this
+    transition."""
+    occ_set = set((occ_1, occ_2))
+    ud_tpl = (set(("0", "2")), set(("u", "d")))
+    u_tpl = (set(("0", "u")), set(("2", "d")))
+    d_tpl = (set(("0", "d")), set(("2", "u")))
+    # These occupation changes correspond to transitions of two
+    # electrons with up and down spin.
+    if occ_set in ud_tpl:
+        return ("u", "d")
+    elif occ_set in u_tpl:
+        return ("u", )
+    elif occ_set in d_tpl:
+        return ("d", )
+    else:
+        sys.exit("This should never happen ;)")
+
+
 def new_conf_diff(c1, c2):
     """Compute transitions between two configurations that are outputted
     by MOLCAS &rasscf calculations.
@@ -393,45 +413,49 @@ def new_conf_diff(c1, c2):
     diffs = [d for d in zip(diffs, corrected_indices) if d[0][0] in ("+", "-")]
     unhandled = list()
     for d_pair in chunks(diffs, 2):
+        print("d_pair", d_pair)
         (first_occ, first_ind), (sec_occ, sec_ind) = d_pair
-        #pair_tpl = (first_occ[-1], first_ind, sec_occ[-1], sec_ind)
-        #first_tpl = (first_occ[-1], first_ind)
-        #sec_tpl = (sec_occ[-1], sec_ind)
+        el_spins = get_electron_spins(first_occ[-1], sec_occ[-1])
+        trans_list = [(el_spin, first_ind) for el_spin in el_spins]
+        # Plus Minus ist eigentlich überflüssig weil first immer -
+        # und sec immer + ist.
         # This is always an excitation FROM this MO
-        # Nur elektronenspin anfügen
         if first_occ == "- 2":
-            el_spin = new_occ_dict[sec_occ]
             print("excitation from")
-            from_mos.append((el_spin, first_ind))
-            if sec_occ == "+ 0":
-                el_spin = new_occ_dict[el_spin]
-                from_mos.append((el_spin, first_ind))
+            from_mos.extend(trans_list)
         # This is always an excitation INTO this MO
         elif sec_occ == "+ 2":
-            el_spin = new_occ_dict[first_occ]
             print("excitation to")
-            to_mos.append((el_spin, first_ind))
-            if first_occ == "- 0":
-                el_spin = new_occ_dict[el_spin]
-                to_mos.append((el_spin, first_ind))
+            to_mos.extend(trans_list)
         # This is an excitation FROM this MO
         elif first_occ in ("- u", "- d") and sec_occ == "+ 0":
             print("excitation from")
-            from_mos.append(pair_tpl)
+            from_mos.extend(trans_list)
         # This is an excitation INTO this MO
-        elif first_occ == "- 0":
+        elif first_occ == "- 0" and sec_occ in ("+ u", "+ d"):
             print("excitation to")
-            to_mos.append(pair_tpl)
+            to_mos.extend(trans_list)
+        # This handles cases where the occupation flips from
+        # (u -> d) or (d -> u).
         else:
-            unhandled.append(pair_tpl)
-            print("unhandled", pair_tpl)
+            print("from and to", "trans_list", trans_list)
+            assert(len(trans_list) == 2)
+            from_mos.append(trans_list[0])
+            to_mos.append(trans_list[1])
 
+    """
     if len(from_mos) is 1 and len(to_mos) is 1:
         print(from_mos)
         ffirst_occ, ffirst_ind, fsec_occ, fsec_ind = from_mos[0]
         tfirst_occ, tfirst_ind, tsec_occ, tsec_ind = to_mos[0]
         #return (from_mos[0][1], to_mos[0][1])
         return (fsec_ind, tsec_ind) 
+    """
+    mo_pairs = list()
+    print("from_mos", from_mos)
+    print("to_mos", to_mos)
+    for el_spin, from_ind in from_mos:
+        print("transition with spin ", el_spin)
     """
     # Try to match occupations
     mo_pairs = list()
