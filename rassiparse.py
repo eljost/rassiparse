@@ -411,14 +411,25 @@ def new_conf_diff(c1, c2):
     combined = zip(diffs, corrected_indices)
     # Only keep differences and drop items that are the same in both configs.
     diffs = [d for d in zip(diffs, corrected_indices) if d[0][0] in ("+", "-")]
-    unhandled = list()
+    #trans_list = list()
+    spin_flip_trans_list = list()
     for d_pair in chunks(diffs, 2):
+        # Plus Minus ist eigentlich überflüssig weil first immer -
+        # und sec immer + ist.
+        # der zweite index in d_pair ist auch sinnlos weil er immer
+        # gleich ist
         print("d_pair", d_pair)
         (first_occ, first_ind), (sec_occ, sec_ind) = d_pair
         el_spins = get_electron_spins(first_occ[-1], sec_occ[-1])
+        #to_extend = [(el_spin, first_ind) for el_spin in el_spins]
         trans_list = [(el_spin, first_ind) for el_spin in el_spins]
-        # Plus Minus ist eigentlich überflüssig weil first immer -
-        # und sec immer + ist.
+        """"
+        if set((first_occ[-1], sec_occ[-1])) == set(("u", "d")):
+            print("from_to")
+            spin_flip_trans_list.extend(to_extend)
+        else:
+            trans_list.extend(to_extend)
+        """
         # This is always an excitation FROM this MO
         if first_occ == "- 2":
             print("excitation from")
@@ -440,8 +451,18 @@ def new_conf_diff(c1, c2):
         else:
             print("from and to", "trans_list", trans_list)
             assert(len(trans_list) == 2)
-            from_mos.append(trans_list[0])
-            to_mos.append(trans_list[1])
+            #from_mos.append(trans_list[0])
+            #to_mos.append(trans_list[1])
+            spin_flip_trans_list.extend(trans_list)
+    """
+    print("trans_list", trans_list)
+    occ_trans = [(el_spin, ind) for el_spin, ind
+                 in trans_list if (ind in occ_indices)]
+    virt_trans = [item for item in trans_list
+                  if not (item in occ_trans)]
+    print("occ_trans", occ_trans)
+    print("virt_trans", virt_trans)
+    """
 
     """
     if len(from_mos) is 1 and len(to_mos) is 1:
@@ -454,8 +475,19 @@ def new_conf_diff(c1, c2):
     mo_pairs = list()
     print("from_mos", from_mos)
     print("to_mos", to_mos)
-    for el_spin, from_ind in from_mos:
-        print("transition with spin ", el_spin)
+    for occ_spin, occ_ind in from_mos:
+        print("transition with spin ", occ_spin)
+        virt_inds = [virt_ind for virt_spin, virt_ind in to_mos
+                     if (occ_spin == virt_spin)]
+        # If we don't find matching orbital now then it must be in the
+        # spin flip list
+        if len(virt_inds) == 0:
+            continue
+        elif len(virt_inds) == 1:
+            mo_pairs.append((occ_ind, virt_inds[0]))
+    print("mo_pairs", mo_pairs)
+        # Select matching
+
     """
     # Try to match occupations
     mo_pairs = list()
@@ -572,8 +604,8 @@ def set_mo_transitions(sf_states, trans_dict):
         conf_tpls = significant_confs(sfs.confs)
         for conf_tpl in conf_tpls:
             conf_id, whoot, conf, ci, weight = conf_tpl
-            mo_pair = new_conf_diff(gs_conf, conf)
-            if mo_pair:
+            mo_pairs = new_conf_diff(gs_conf, conf)
+            for mo_pair in mo_pairs:
                 transition = Transition(ground_state, sfs, mo_pair, -1, weight)
                 sfs.add_transition(transition)
 
