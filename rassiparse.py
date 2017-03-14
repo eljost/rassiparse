@@ -4,8 +4,8 @@
 import argparse
 from collections import namedtuple, OrderedDict
 import logging
-#logging.basicConfig(level=logging.INFO)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.DEBUG)
 import os.path
 import re
 import sys
@@ -16,9 +16,8 @@ import numpy as np
 import simplejson as json
 from tabulate import tabulate
 
-from helper_funcs import chunks, swap_chars_in_str, print_bt_table
+from helper_funcs import chunks
 import rex
-import td
 from SpinFreeState import SpinFreeState
 from Transition import Transition
 
@@ -215,23 +214,6 @@ def sort_by_ci_coeff(root):
     return sorted(root, key=lambda lst: -lst[-1])
 
 
-def make_spectrum(transitions, start_l, end_l):
-    es = [td.ExcitedState(i, 0, 0, trs[4], trs[5], trs[6], 0)
-          for i, trs in enumerate(transitions[1:])]
-    td.make_spectrum(es, start_l, end_l, False)
-
-
-def hartree2eV(hartree):
-    """Convert an energy from electronvolt to atomic units."""
-    return hartree * 27.2114
-
-
-def hartree2nm(hartree):
-    """Convert an energy in atomic units to electronvolt."""
-    with np.errstate(divide="ignore"):
-        return 6.63e-34 * 2.9979e8 * 1e9 / (hartree * 27.2114 * 1.6e-19)
-
-
 def significant_confs(root, thresh=0.1):
     return [conf for conf in root if conf[-1] >= thresh]
 
@@ -248,15 +230,6 @@ def one_by_one_diff(str1, str2):
             diffs.append("- {}".format(c1))
             diffs.append("+ {}".format(c2))
     return diffs
-
-
-def flip_spins(diffs):
-    """Replace ['- 2', '+ u'] with ['- 2', '+ d'] to fake closed shells."""
-    flipped_diffs = diffs
-    for i in range(len(diffs) - 1):
-        if (diffs[i] == "- 2") and (diffs[i+1] == "+ u"):
-            flipped_diffs[i+1] = "+ d"
-    return flipped_diffs
 
 
 def get_electron_spins(occ_1, occ_2):
@@ -361,12 +334,14 @@ def conf_diff(c1, c2):
         elif len(virt_inds) == 1:
             mo_pairs.append((occ_ind, virt_inds[0][1]))
         else:
-            logging.warning("Can't handle it.")
+            logging.warning("Ambiguous transitions. Can't handle this.")
     for occ_spin, occ_ind in handle_with_spin_flip:
-        virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind in spin_flip_mos
-                     if (occ_spin == virt_spin)]
+        virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind
+                     in spin_flip_mos if (occ_spin == virt_spin)]
         if len(virt_inds) == 1:
             mo_pairs.append((occ_ind, virt_inds[0][1]))
+        else:
+            logging.warning("Error")
 
     return mo_pairs
 
@@ -387,10 +362,16 @@ def set_mo_transitions(sf_states, trans_dict):
     # configurations for later printing
     mo_transitions = dict()
     for i, sfs in enumerate(sf_states):
+        logging.info("Checking state {} from JobIph {}".format(
+            sfs.state, sfs.state)
+        )
         # Filter for configurations with CI coefficients >= 0.2 (8%)
         conf_tpls = significant_confs(sfs.confs)
         for conf_tpl in conf_tpls:
             conf_id, whoot, conf, ci, weight = conf_tpl
+            logging.info("Checking configuration {} with "
+                         "weight {:.1%}".format(conf, weight)
+            )
             mo_pairs = conf_diff(gs_conf, conf)
             for mo_pair in mo_pairs:
                 transition = Transition(ground_state, sfs, mo_pair, -1, weight)
@@ -419,82 +400,6 @@ def blub():
         verbose_confs_dict.setdefault(sfs.state,
                                       list()).append(verbose_tpl)
     """
-
-
-def create_output_list(sf_states, trans_dict, verbose_confs_dict):
-    output = list()
-    trs_dct = lambda root: trans_dict["1,{}".format(root)]
-    for i, sfs in enumerate(sf_states):
-        try:
-            energy = sfs.energy
-            output.append((
-                sfs.state,
-                sfs.jobiph,
-                sfs.root,
-                energy,
-                hartree2eV(energy),
-                hartree2nm(energy),
-                trs_dct(i + 1))
-            )
-        except KeyError as err:
-            from_state, to_state = err.args[0].split(",")
-            logging.warning(
-                "Oscillator strength below threshold for transition"
-                " {} -> {}.".format(
-                    from_state,
-                    to_state))
-    output = sorted(output, key=lambda row: row[3])
-
-    return output
-
-
-def print_booktabs(output, symms):
-    bt_list = list()
-    # Drop HF-configuration
-    for line in output:
-        state, jobiph, root, E, EeV, Enm, f = line
-        if symms:
-            sym = symms[jobiph-1]
-        else:
-            sym = jobiph
-        bt_list.append((sym, EeV, Enm, f))
-
-    print_bt_table(bt_list)
-
-
-def print_output(output, verbose_confs_dict, header):
-    header_tpl = ["{}" for item in output_headers]
-    header_str = "\t".join(header_tpl)
-    print(header_str.format(*output_headers))
-    for line in output:
-        state, jobiph, root, E, EeV, Enm, f = line
-        id_tpl = (jobiph, root)
-        # with E
-        #out_tpl =("{}", "{}", "{:.5f}", "{:.2f}", "{:.1f}", "{:.5f}")
-        # without E
-        out_str ="{} {}\t\t{:.2f}\t\t{:.1f}\t\t{:.5f}"
-        print(out_str.format(
-            jobiph,
-            root,
-            #E,
-            EeV,
-            Enm,
-            f
-        ))
-        try:
-            verbose_confs = verbose_confs_dict[id_tpl]
-            verbose_tpl = ("\t{}", "->",  "{}", "\t{:.2%}")
-            verbose_str = "\t".join(verbose_tpl)
-            for vc in verbose_confs:
-                from_mo, to_mo, weight = vc
-                print(verbose_str.format(
-                    from_mo,
-                    to_mo,
-                    weight
-                ))
-        except KeyError:
-            pass
-        print
 
 
 def make_states_list(output, irreps):
@@ -592,10 +497,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse a &rassi-output" \
                                      " from MOLCAS.")
     parser.add_argument("fn", help="Filename of the RASSI-file.")
-    parser.add_argument("--spectrum", nargs=2, type=float,
-                        help="Output an spectrum.")
-    parser.add_argument("--booktabs", action="store_true",
-            help="Format output so that it's usable in latex-tables.")
     parser.add_argument("--sym", nargs="+", default=None,
             help="Symmetries of the WF in the JobIph-files.")
     parser.add_argument("--docx", action="store_true",
@@ -622,13 +523,6 @@ if __name__ == "__main__":
         )
 
     fn_base = os.path.splitext(fn)[0]
-    if args.spectrum:
-        from_l, to_l = args.spectrum
-        make_spectrum(output, from_l, to_l)
-        sys.exit()
-    if args.booktabs:
-        print_booktabs(output, args.sym)
-        sys.exit()
     if args.docx:
         make_docx(output, verbose_confs_dict, irreps, fn_base)
     if args.html:
