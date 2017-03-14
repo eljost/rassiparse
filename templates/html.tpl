@@ -23,17 +23,17 @@
         </style>
     </head>
     <body>
-    {% for state in states[1:] %}
+    {% for sfs in sf_states[1:] %}
     <div class="state">
         <h2>
-            S<sub>{{ state.id }}</sub>,
-            {{ state.sym }},
-            {{ "%.1f" | format(state.Enm) }} nm,
-            {{ "%.2f" | format(state.EeV) }} eV,
-            f={{ "%.4f" | format(state.f) }}
+            S<sub>{{ sfs.state }}</sub>,
+            {{ sfs.sym }},
+            {{ "%.1f" | format(sfs.dE_gs_nm) }} nm,
+            {{ "%.2f" | format(sfs.dE_gs_eV) }} eV,
+            f={{ "%.4f" | format(sfs.osc) }}
         </h2>
-        {% if state.key in verbose_confs %}
-        {% for start, end, weight in verbose_confs[state.key] %}
+        <p>{{ sfs.confdiffs }}</p>
+        {#{% for start, end, weight in verbose_confs[state.key] %}
         <div>
             <figure>
                 <img class="mo" src="{{ imgs[state.key[0]][start] }}" />
@@ -41,8 +41,7 @@
                 <figcaption>{{ "%.1f" | format(weight*100) }}%</figcaption>
             </figure>
         </div>
-        {% endfor %}
-        {% endif %}
+        {% endfor %}#}
         </div>
         {% endfor %}
     </body>

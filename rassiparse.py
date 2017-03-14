@@ -32,14 +32,13 @@ def make_docx(sf_states, attrs, fn_base):
     trans_fmt = "{} → {}"
     weight_fmt = "{:.0%}"
 
-    #object_attrs = [sfs.as_list(attrs) for sfs in sf_states]
-    object_attrs = [sfs.as_str_list(attrs) for sfs in sf_states]
+    sfs_attrs = [sfs.as_str_list(attrs) for sfs in sf_states]
     headers = sf_states[0].get_headers(attrs)
 
     # Prepare the document and the table
     doc = Document()
     # We need one additional row for the table header
-    table = doc.add_table(rows=len(object_attrs)+1,
+    table = doc.add_table(rows=len(sfs_attrs)+1,
                           cols=len(headers))
 
     # Set header in the first row
@@ -48,7 +47,7 @@ def make_docx(sf_states, attrs, fn_base):
 
     # Start from the 2nd row (index 1) and fill in all cells
     # with the parsed data.
-    for i, attrs_for_row in enumerate(object_attrs, 1):
+    for i, attrs_for_row in enumerate(sfs_attrs, 1):
         for item, cell in zip(attrs_for_row, table.rows[i].cells):
             cell.text = str(item)
     # Save the document
@@ -308,10 +307,6 @@ def conf_diff(c1, c2):
 def set_mo_transitions(sf_states, trans_dict):
     sf_states = sorted(sf_states, key=lambda sfs: sfs.energy)
     # Determine ground state based on state with minimum energy
-    #energies = np.array([sfs.energy for sfs in sf_states])
-    #gs_index_arr = np.where(energies==energies.min())[0]
-    #gs_index = gs_index_arr[0]
-    #ground_state = sf_states[gs_index]
     ground_state = sf_states[0]
     gs_conf_line = significant_confs(ground_state.confs)[0]
     gs_conf = gs_conf_line[2]
@@ -319,7 +314,6 @@ def set_mo_transitions(sf_states, trans_dict):
     logging.info("Found {} GS configuration ({:.1%}) in state {}.".format(
         gs_conf, gs_weight, ground_state.state))
 
-    # Skip the ground_state
     for sfs in sf_states:
         trans_tpl = (ground_state.state, sfs.state)
         try:
@@ -342,7 +336,6 @@ def set_mo_transitions(sf_states, trans_dict):
                          "weight {:.1%}".format(conf, weight)
             )
             mo_pairs = conf_diff(gs_conf, conf)
-            print("mo_pairs", mo_pairs)
             cd = ConfDiff(mo_pairs, weight)
             sfs.add_confdiff(cd)
 
@@ -371,13 +364,9 @@ def blub():
     """
 
 
-def make_states_list(output, irreps):
-    # Sort by energy
-    by_energy = sorted(output, key=lambda state: state[4])
-    states = list()
-    for i, state in enumerate(by_energy):
-        id, jobiph, root, E, EeV, Enm, f = state
-        key_tpl = (jobiph, root)
+def make_html(sf_states, fn_base):
+    """
+
         states.append({"id": i,
                        "sym": irreps[jobiph],
                        "Enm": Enm,
@@ -385,17 +374,12 @@ def make_states_list(output, irreps):
                        "f": f,
                        "key": key_tpl
         })
-    return states
-
-
-def make_html(output, verbose_confs, irreps, fn_base, imgs):
+    """
     j2_env = Environment(loader=FileSystemLoader(THIS_DIR,
                                                  followlinks=True))
     tpl = j2_env.get_template("templates/html.tpl")
-    states = make_states_list(output, irreps)
-    rendered = tpl.render(states=states,
-                          verbose_confs=verbose_confs,
-                          imgs=imgs)
+
+    rendered = tpl.render(sf_states=sf_states)
     out_fn = os.path.join(
                 os.getcwd(), fn_base + ".html")
     with open(out_fn, "w") as handle:
@@ -455,9 +439,9 @@ def group_sf_states_by(sf_states, attr):
 
 
 def print_table_by_attr(objects, attrs, floatfmt=".4f"):
-    object_attrs = [obj.as_list(attrs) for obj in objects]
+    sfs_attrs = [obj.as_list(attrs) for obj in objects]
     headers = objects[0].get_headers(attrs)
-    print(tabulate(object_attrs, headers=headers,
+    print(tabulate(sfs_attrs, headers=headers,
                    tablefmt="fancy_grid", floatfmt=floatfmt))
 
 
@@ -496,4 +480,4 @@ if __name__ == "__main__":
         docx_attrs = ("state", "sym", "dE_gs_nm", "dE_gs_eV", "osc", "confdiffs")
         make_docx(sf_states, docx_attrs, fn_base)
     if args.html:
-        make_html(output, verbose_confs_dict, irreps, fn_base, imgs)
+        make_html(sf_states, fn_base)
