@@ -412,7 +412,7 @@ def new_conf_diff(c1, c2):
     # Only keep differences and drop items that are the same in both configs.
     diffs = [d for d in zip(diffs, corrected_indices) if d[0][0] in ("+", "-")]
     #trans_list = list()
-    spin_flip_trans_list = list()
+    spin_flip_mos = list()
     for d_pair in chunks(diffs, 2):
         # Plus Minus ist eigentlich überflüssig weil first immer -
         # und sec immer + ist.
@@ -453,7 +453,7 @@ def new_conf_diff(c1, c2):
             assert(len(trans_list) == 2)
             #from_mos.append(trans_list[0])
             #to_mos.append(trans_list[1])
-            spin_flip_trans_list.extend(trans_list)
+            spin_flip_mos.extend(trans_list)
     """
     print("trans_list", trans_list)
     occ_trans = [(el_spin, ind) for el_spin, ind
@@ -475,18 +475,27 @@ def new_conf_diff(c1, c2):
     mo_pairs = list()
     print("from_mos", from_mos)
     print("to_mos", to_mos)
+    handle_with_spin_flip = list()
     for occ_spin, occ_ind in from_mos:
         print("transition with spin ", occ_spin)
-        virt_inds = [virt_ind for virt_spin, virt_ind in to_mos
+        virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind in to_mos
                      if (occ_spin == virt_spin)]
         # If we don't find matching orbital now then it must be in the
         # spin flip list
         if len(virt_inds) == 0:
-            continue
+            handle_with_spin_flip.append((occ_spin, occ_ind))
         elif len(virt_inds) == 1:
-            mo_pairs.append((occ_ind, virt_inds[0]))
+            mo_pairs.append((occ_ind, virt_inds[0][1]))
+            #to_mos.remove(virt_inds[0])
+        else:
+            logging.warning("Can't handle it.")
     print("mo_pairs", mo_pairs)
-        # Select matching
+    for occ_spin, occ_ind in handle_with_spin_flip:
+        virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind in spin_flip_mos
+                     if (occ_spin == virt_spin)]
+        if len(virt_inds) == 1:
+            mo_pairs.append((occ_ind, virt_inds[0][1]))
+
 
     """
     # Try to match occupations
