@@ -354,6 +354,8 @@ def new_conf_diff(c1, c2):
         assert not (("d" in irrep) and ("u" in irrep)), "Ambiguos transition"
     """
 
+    new_occ_dict = {"u": "d", "d": "u", "0": "u"}
+
     # Replace whitespace
     c1 = c1.replace(" ", "")
     c2 = c2.replace(" ", "")
@@ -392,17 +394,26 @@ def new_conf_diff(c1, c2):
     unhandled = list()
     for d_pair in chunks(diffs, 2):
         (first_occ, first_ind), (sec_occ, sec_ind) = d_pair
-        pair_tpl = (first_occ[-1], first_ind, sec_occ[-1], sec_ind)
-        first_tpl = (first_occ[-1], first_ind)
-        sec_tpl = (sec_occ[-1], sec_ind)
+        #pair_tpl = (first_occ[-1], first_ind, sec_occ[-1], sec_ind)
+        #first_tpl = (first_occ[-1], first_ind)
+        #sec_tpl = (sec_occ[-1], sec_ind)
         # This is always an excitation FROM this MO
+        # Nur elektronenspin anfügen
         if first_occ == "- 2":
+            el_spin = new_occ_dict[sec_occ]
             print("excitation from")
-            from_mos.append(pair_tpl)
+            from_mos.append((el_spin, first_ind))
+            if sec_occ == "+ 0":
+                el_spin = new_occ_dict[el_spin]
+                from_mos.append((el_spin, first_ind))
         # This is always an excitation INTO this MO
         elif sec_occ == "+ 2":
+            el_spin = new_occ_dict[first_occ]
             print("excitation to")
-            to_mos.append(pair_tpl)
+            to_mos.append((el_spin, first_ind))
+            if first_occ == "- 0":
+                el_spin = new_occ_dict[el_spin]
+                to_mos.append((el_spin, first_ind))
         # This is an excitation FROM this MO
         elif first_occ in ("- u", "- d") and sec_occ == "+ 0":
             print("excitation from")
@@ -415,9 +426,6 @@ def new_conf_diff(c1, c2):
             unhandled.append(pair_tpl)
             print("unhandled", pair_tpl)
 
-    new_occ_dict = {"u": "d",
-                    "d": "u"
-    }
     if len(from_mos) is 1 and len(to_mos) is 1:
         print(from_mos)
         ffirst_occ, ffirst_ind, fsec_occ, fsec_ind = from_mos[0]
