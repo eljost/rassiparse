@@ -19,73 +19,38 @@ from tabulate import tabulate
 from helper_funcs import chunks
 import rex
 from SpinFreeState import SpinFreeState
-from Transition import Transition
+from ConfDiff import ConfDiff
 
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-def make_docx(output, verbose_confs_dict, irreps, fn_base):
+def make_docx(sf_states, attrs, fn_base):
     """Export the supplied excited states into a .docx-document."""
     docx_fn = fn_base + ".docx"
     # The table header
-    header = ("State",
-              "Sym.",
-              "λ / nm",
-              "E / eV",
-              "f",
-              "natural orbitals",
-              "Weight / %")
     trans_fmt = "{} → {}"
     weight_fmt = "{:.0%}"
 
-    # Prepare the data to be inserted into the table
-    as_lists = [[i, irreps[jobiph], Enm, EeV, f]
-                for i, (state, jobiph, root, E, EeV, Enm, f)
-                in enumerate(output[1:], 1)]
-    id_tpls = [(jobiph, root)
-               for state, jobiph, root, *_
-               in output[1:]]
-    as_fmt_lists = [[
-        "S{}".format(id_),
-        sym,
-        "{:.1f}".format(l),
-        "{:.2f}".format(dE),
-        "{:.4f}".format(f)] for id_, sym, l, dE, f in as_lists]
-
-    # For one excited state there may be several configurations
-    # that contribute. This loop constructs two string, holding
-    # the information about the transitions and the contributing
-    # weights.
-    for i, id_tpl in enumerate(id_tpls):
-        try:
-            verbose_confs = verbose_confs_dict[id_tpl]
-        except KeyError:
-            continue
-        trans_list = [trans_fmt.format(from_mo, to_mo)
-                      for from_mo, to_mo, _
-                      in verbose_confs]
-        trans_str = "\n".join(trans_list)
-        weight_list = [weight_fmt.format(weight)
-                       for _, __, weight in verbose_confs]
-        weight_str = "\n".join(weight_list)
-        as_fmt_lists[i].extend([trans_str, weight_str])
+    #object_attrs = [sfs.as_list(attrs) for sfs in sf_states]
+    object_attrs = [sfs.as_str_list(attrs) for sfs in sf_states]
+    headers = sf_states[0].get_headers(attrs)
 
     # Prepare the document and the table
     doc = Document()
     # We need one additional row for the table header
-    table = doc.add_table(rows=len(output[1:])+1,
-                          cols=len(header))
+    table = doc.add_table(rows=len(object_attrs)+1,
+                          cols=len(headers))
 
     # Set header in the first row
-    for item, cell in zip(header, table.rows[0].cells):
+    for item, cell in zip(headers, table.rows[0].cells):
         cell.text = item
 
     # Start from the 2nd row (index 1) and fill in all cells
     # with the parsed data.
-    for i, fmt_list in enumerate(as_fmt_lists, 1):
-        for item, cell in zip(fmt_list, table.rows[i].cells):
-            cell.text = item
+    for i, attrs_for_row in enumerate(object_attrs, 1):
+        for item, cell in zip(attrs_for_row, table.rows[i].cells):
+            cell.text = str(item)
     # Save the document
     doc.save(docx_fn)
 
@@ -139,7 +104,10 @@ def parse_rassi(text):
     trans = rex.match_lines(lines, trans_re, trans_conv)
     # Create dictionary for easy lookup holding the
     # oscillator strengths with 'from,to' as keys
-    trans_dict = make_trans_dict(trans)
+    trans_dict = dict()
+    for t in trans:
+        to, from_, osc = t[:3]
+        trans_dict[(to, from_)] = osc
 
     # Get total energies
     energy_re = "::    RASSI State\s+\d+\s+Total energy:"
@@ -190,24 +158,11 @@ def parse_rassi(text):
             mult=mult,
             confs=confs,
             energy=en,
-            energy_rel=en_rel
+            dE_global=en_rel
         )
         sf_states.append(sfs)
 
     return sf_states, trans_dict
-
-
-def make_trans_dict(trans):
-    """Create a dictionary holding all the oscillator
-    strengths of the different electronic transitions."""
-    trans_dict = {
-        "1,1": 0.0,
-    }
-    for t in trans:
-        to, ffrom, osc_str = t[:3]
-        trans_dict["{},{}".format(to, ffrom)] = osc_str
-
-    return trans_dict
 
 
 def sort_by_ci_coeff(root):
@@ -334,34 +289,48 @@ def conf_diff(c1, c2):
         elif len(virt_inds) == 1:
             mo_pairs.append((occ_ind, virt_inds[0][1]))
         else:
+            # Don't return anything because this state can't be described
+            # completly without considering all MO transitions.
             logging.warning("Ambiguous transitions. Can't handle this.")
+            return []
     for occ_spin, occ_ind in handle_with_spin_flip:
         virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind
                      in spin_flip_mos if (occ_spin == virt_spin)]
         if len(virt_inds) == 1:
             mo_pairs.append((occ_ind, virt_inds[0][1]))
         else:
-            logging.warning("Error")
+            logging.warning("Can't handle this.")
+            return []
 
     return mo_pairs
 
 
 def set_mo_transitions(sf_states, trans_dict):
+    sf_states = sorted(sf_states, key=lambda sfs: sfs.energy)
     # Determine ground state based on state with minimum energy
-    energies_rel = np.array([sfs.energy_rel for sfs in sf_states])
-    gs_index_arr = np.where(energies_rel==energies_rel.min())[0]
-    gs_index = gs_index_arr[0]
-    ground_state = sf_states[gs_index]
-    gs_conf_line = significant_confs(sf_states[gs_index].confs)[0]
+    #energies = np.array([sfs.energy for sfs in sf_states])
+    #gs_index_arr = np.where(energies==energies.min())[0]
+    #gs_index = gs_index_arr[0]
+    #ground_state = sf_states[gs_index]
+    ground_state = sf_states[0]
+    gs_conf_line = significant_confs(ground_state.confs)[0]
     gs_conf = gs_conf_line[2]
     gs_weight = gs_conf_line[4]
-    logging.info("Found {} GS configuration ({:.1%}) in root {}.".format(
-        gs_conf, gs_weight, gs_index+1))
+    logging.info("Found {} GS configuration ({:.1%}) in state {}.".format(
+        gs_conf, gs_weight, ground_state.state))
 
-    # Create a dict to hold verbose information about the
-    # configurations for later printing
-    mo_transitions = dict()
-    for i, sfs in enumerate(sf_states):
+    # Skip the ground_state
+    for sfs in sf_states:
+        trans_tpl = (ground_state.state, sfs.state)
+        try:
+            osc = trans_dict[trans_tpl]
+        except KeyError:
+            osc = 0
+            logging.warning("Oscillator strength below threshold for "
+                            "transition between states {} -> {}!".format(
+                                *trans_tpl)
+            )
+        sfs.set_ground_state(ground_state, osc)
         logging.info("Checking state {} from JobIph {}".format(
             sfs.state, sfs.state)
         )
@@ -373,9 +342,9 @@ def set_mo_transitions(sf_states, trans_dict):
                          "weight {:.1%}".format(conf, weight)
             )
             mo_pairs = conf_diff(gs_conf, conf)
-            for mo_pair in mo_pairs:
-                transition = Transition(ground_state, sfs, mo_pair, -1, weight)
-                sfs.add_transition(transition)
+            print("mo_pairs", mo_pairs)
+            cd = ConfDiff(mo_pairs, weight)
+            sfs.add_confdiff(cd)
 
 
 def blub():
@@ -488,7 +457,6 @@ def group_sf_states_by(sf_states, attr):
 def print_table_by_attr(objects, attrs, floatfmt=".4f"):
     object_attrs = [obj.as_list(attrs) for obj in objects]
     headers = objects[0].get_headers(attrs)
-    #object_attrs = [[getattr(obj, attr) for attr in attrs] for obj in objects]
     print(tabulate(object_attrs, headers=headers,
                    tablefmt="fancy_grid", floatfmt=floatfmt))
 
@@ -511,20 +479,21 @@ if __name__ == "__main__":
 
     active_spaces, imgs, irreps = load_json(fn)
     sf_states, trans_dict= parse_rassi(text)
-
-    print_table_by_attr(sf_states, attrs=("state", "root", "mult", "energy_rel"))
+    
+    print_table_by_attr(sf_states, attrs=("state", "root", "mult",
+                                          "dE_global_eV"))
 
     grouped_by_mult = group_sf_states_by(sf_states, "mult")
     for mult in grouped_by_mult:
         by_mult = grouped_by_mult[mult]
         set_mo_transitions(by_mult, trans_dict)
         print_table_by_attr(by_mult, attrs=("state", "root", "mult",
-                                            "energy", "transitions")
+                                            "dE_gs_eV", "osc", "confdiffs")
         )
 
     fn_base = os.path.splitext(fn)[0]
     if args.docx:
-        make_docx(output, verbose_confs_dict, irreps, fn_base)
+        docx_attrs = ("state", "sym", "dE_gs_nm", "dE_gs_eV", "osc", "confdiffs")
+        make_docx(sf_states, docx_attrs, fn_base)
     if args.html:
         make_html(output, verbose_confs_dict, irreps, fn_base, imgs)
-

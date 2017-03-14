@@ -5,18 +5,24 @@ from WithHeader import WithHeader
 
 class SpinFreeState(WithHeader):
     headers = {
-        "state": "State",
-        "jobiph": "JobIph",
-        "root": "Root",
-        "sym": "Sym.",
-        "mult" : "2S+1",
-        "energy": "E / au",
-        "energy_rel": "ΔE / au",
-        "transitions": "Transitions",
+        "state": ("State", "{}"),
+        "jobiph": ("JobIph", "{}"),
+        "root": ("Root", "{}"),
+        "sym": ("Sym.", "{}"),
+        "mult" : ("2S+1", "{}"),
+        "energy": ("E / au", "{:.6f}"),
+        "confdiffs": ("Transitions", "{}"),
+        "dE_global": ("ΔE / au", "{:.2f}"),
+        "dE_global_eV": ("ΔE / eV", "{:.2f}"),
+
+        "dE_gs": ("ΔE / au", "{:.2f}"),
+        "dE_gs_eV": ("ΔE / eV", "{:.2f}"),
+        "dE_gs_nm": ("λ / nm", "{:.1f}"),
+        "osc": ("f", "{:.4f}"),
     }
 
     def __init__(self, state, jobiph, root, sym, mult,
-                 confs, energy, energy_rel):
+                 confs, energy, dE_global):
         super(SpinFreeState, self).__init__()
 
         self.state = state
@@ -26,13 +32,24 @@ class SpinFreeState(WithHeader):
         self.mult = mult
         self.confs = confs
         self.energy = energy
-        self.energy_rel = energy_rel
+        self.dE_global = dE_global
 
-        self._transitions = list()
+        self._confdiffs = list()
 
     @property
-    def transitions(self):
-        return ", ".join([str(t) for t in self._transitions])
+    def confdiffs(self):
+        return ", ".join([str(t) for t in self._confdiffs])
 
-    def add_transition(self, transition):
-        self._transitions.append(transition)
+    def add_confdiff(self, confdiff):
+        self._confdiffs.append(confdiff)
+
+    @property
+    def dE_global_eV(self):
+        return self.dE_global * self.hartree2eV
+
+    def set_ground_state(self, ground_state, osc):
+        self.ground_state = ground_state
+        self.dE_gs = self.energy - self.ground_state.energy
+        self.dE_gs_eV = self.dE_gs * self.hartree2eV
+        self.dE_gs_nm = self.hartree2nm / self.dE_gs
+        self.osc = osc
