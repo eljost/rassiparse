@@ -4,7 +4,8 @@
 import argparse
 from collections import namedtuple, OrderedDict
 import logging
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 import os.path
 import re
 import sys
@@ -258,89 +259,6 @@ def flip_spins(diffs):
     return flipped_diffs
 
 
-def conf_diff(c1, c2):
-    """Compute transitions between two configurations that are outputted
-    by MOLCAS &rasscf calculations.
-    E.g. 2222000 2200 and 222u000 220d would give [(3, 10)]
-    """
-
-    """
-    # Check if there could be several possible transitions and then abort
-    c2_split = c2.split()
-    for irrep in c2_split:
-        assert not (("d" in irrep) and ("u" in irrep)), "Ambiguos transition"
-    """
-
-    # Replace whitespace
-    c1 = c1.replace(" ", "")
-    c2 = c2.replace(" ", "")
-
-    # Prepare lists that hold the information about the transitions
-    from_mos = list()
-    to_mos = list()
-    mo_pairs = ()
-
-    # Determine occupied orbitals
-    occ_indices = [i for i, mo in enumerate(c1) if (mo is "2")]
-
-    diffs = one_by_one_diff(c1, c2)
-    # If we have an open shell configuration then we
-    # fake a closed shell configuration by flipping
-    # spins from 'u' to 'd' in orbitals that are doubly
-    # occupied in the closed shell configuration.
-    #
-    # Basically we replace sublists that look like this
-    # ['- 2', '+ u'] with ['- 2', '+ d']
-    if ("u" in c2) and not ("d" in c2):
-        logging.info("Open shell configuration found!")
-        diffs = flip_spins(diffs)
-    offset = 0
-    for i, d in enumerate(diffs):
-        # Modify index i with offset because ndiff also outputs
-        # chars that are in c1 and not in c2 but in the end we
-        # just want whats in c2 and not in c1.
-        index_in_c2 = i - offset
-        # Look for differences in second configuration compared
-        # to the first one.
-        if d.startswith("+"):
-            keep = (index_in_c2, d[-1])
-            # Check if difference originates from an occupied orbital
-            if index_in_c2 in occ_indices:
-                from_mos.append(keep)
-            # Check for double excitations
-            elif d.endswith("2"):
-                logging.warning("Double excitations not supported!")
-                return list()
-            # Otherwise the MO was formerly unoccupied. Then the 
-            # transition goes to this orbital.
-            else:
-                to_mos.append(keep)
-        elif d.startswith("-"):
-            offset += 1
-
-    spin_pairs = {
-        "u": "d",
-        "d": "u"
-    }
-
-    if (len(from_mos) >= 2) or (len(to_mos) >= 2):
-        logging.warning("Double excitations not supported!")
-        return list()
-    # Correlate information in both lists
-    for from_tpl in from_mos:
-        i, from_spin = from_tpl
-        for to_tpl in to_mos:
-            j, to_spin = to_tpl
-            if to_spin is spin_pairs[from_spin]:
-                #mo_pairs.append((i, j))
-                mo_pairs = (i, j)
-                from_mos.remove(from_tpl)
-                to_mos.remove(to_tpl)
-                continue
-
-    return mo_pairs
-
-
 def get_electron_spins(occ_1, occ_2):
     """Takes two occupation labels ("0", "u", "d", "2") as argument
     and returns the spin(s) of the electron(s) that can produce this
@@ -361,233 +279,94 @@ def get_electron_spins(occ_1, occ_2):
         sys.exit("This should never happen ;)")
 
 
-def new_conf_diff(c1, c2):
+def conf_diff(c1, c2):
     """Compute transitions between two configurations that are outputted
     by MOLCAS &rasscf calculations.
-    E.g. 2222000 2200 and 222u000 220d would give (3, 10)
-    """
-
-    """
-    # Check if there could be several possible transitions and then abort
-    c2_split = c2.split()
-    for irrep in c2_split:
-        assert not (("d" in irrep) and ("u" in irrep)), "Ambiguos transition"
+    E.g. 2222000 2200 and 222u000 220d would return ((3, 10), )
     """
 
     new_occ_dict = {"u": "d", "d": "u", "0": "u"}
 
-    # Replace whitespace
+    # Delete whitespace
     c1 = c1.replace(" ", "")
     c2 = c2.replace(" ", "")
 
     # Prepare lists that hold the information about the transitions
     from_mos = list()
     to_mos = list()
-    mo_pairs = ()
+    spin_flip_mos = list()
+    mo_pairs = list()
 
-    # Determine occupied orbitals
-    occ_indices = [i for i, mo in enumerate(c1) if (mo in ("u", "d", "2"))]
-
-    print("c1", c1)
-    print("c2", c2)
+    logging.debug("Got c1: {}".format(c1))
+    logging.debug("Got c2: {}".format(c2))
     diffs = np.array(one_by_one_diff(c1, c2))
-    print(diffs)
-    # If we have an open shell configuration then we
-    # fake a closed shell configuration by flipping
-    # spins from 'u' to 'd' in orbitals that are doubly
-    # occupied in the closed shell configuration.
-    #
-    # Basically we replace sublists that look like this
-    # ['- 2', '+ u'] with ['- 2', '+ d']
     if ("u" in c1) and not ("d" in c1):
-        logging.info("Open shell configuration found!")
-    offset = 0
+        logging.debug("Open shell configuration found!")
+    # We have to correct the indices in diffs because for every
+    # difference we introduce a new item. So we can't use the
+    # indices of the items in diffs directly.
     offsets = [1 if i.startswith("+") else 0 for i in diffs]
     indices = np.arange(len(diffs))
     cum_offsets = np.array(offsets, dtype=int).cumsum()
-    # We have to correct the indices in diffs because for every
-    # difference we introduce a new item for every difference.
     corrected_indices = indices - cum_offsets
     combined = zip(diffs, corrected_indices)
     # Only keep differences and drop items that are the same in both configs.
     diffs = [d for d in zip(diffs, corrected_indices) if d[0][0] in ("+", "-")]
-    #trans_list = list()
-    spin_flip_mos = list()
     for d_pair in chunks(diffs, 2):
-        # Plus Minus ist eigentlich überflüssig weil first immer -
-        # und sec immer + ist.
+        # The '+' and '-' could be dropped now because the first item is alwayas
+        # '-' and the second is always '+' but we keep them for now because the
+        # code should be easier to follow this way.
         # der zweite index in d_pair ist auch sinnlos weil er immer
         # gleich ist
-        print("d_pair", d_pair)
-        (first_occ, first_ind), (sec_occ, sec_ind) = d_pair
+        logging.debug("Checking diff-pair {}.".format(d_pair))
+        # Don't consider the second because it always equals the first index
+        (first_occ, ind), (sec_occ, _) = d_pair
+        assert(ind == _)
+        # This tuple describes the electron spin in this transition
         el_spins = get_electron_spins(first_occ[-1], sec_occ[-1])
-        #to_extend = [(el_spin, first_ind) for el_spin in el_spins]
-        trans_list = [(el_spin, first_ind) for el_spin in el_spins]
-        """"
-        if set((first_occ[-1], sec_occ[-1])) == set(("u", "d")):
-            print("from_to")
-            spin_flip_trans_list.extend(to_extend)
-        else:
-            trans_list.extend(to_extend)
-        """
+        trans_list = [(el_spin, ind) for el_spin in el_spins]
         # This is always an excitation FROM this MO
         if first_occ == "- 2":
-            print("excitation from")
             from_mos.extend(trans_list)
         # This is always an excitation INTO this MO
         elif sec_occ == "+ 2":
-            print("excitation to")
             to_mos.extend(trans_list)
-        # This is an excitation FROM this MO
+        # This is always an excitation FROM this MO
         elif first_occ in ("- u", "- d") and sec_occ == "+ 0":
-            print("excitation from")
             from_mos.extend(trans_list)
-        # This is an excitation INTO this MO
+        # This is always an excitation INTO this MO
         elif first_occ == "- 0" and sec_occ in ("+ u", "+ d"):
-            print("excitation to")
             to_mos.extend(trans_list)
         # This handles cases where the occupation flips from
-        # (u -> d) or (d -> u).
+        # (u -> d) or (d -> u). This equals the transition of
+        # two electrons.
         else:
-            print("from and to", "trans_list", trans_list)
             assert(len(trans_list) == 2)
-            #from_mos.append(trans_list[0])
-            #to_mos.append(trans_list[1])
             spin_flip_mos.extend(trans_list)
-    """
-    print("trans_list", trans_list)
-    occ_trans = [(el_spin, ind) for el_spin, ind
-                 in trans_list if (ind in occ_indices)]
-    virt_trans = [item for item in trans_list
-                  if not (item in occ_trans)]
-    print("occ_trans", occ_trans)
-    print("virt_trans", virt_trans)
-    """
 
-    """
-    if len(from_mos) is 1 and len(to_mos) is 1:
-        print(from_mos)
-        ffirst_occ, ffirst_ind, fsec_occ, fsec_ind = from_mos[0]
-        tfirst_occ, tfirst_ind, tsec_occ, tsec_ind = to_mos[0]
-        #return (from_mos[0][1], to_mos[0][1])
-        return (fsec_ind, tsec_ind) 
-    """
-    mo_pairs = list()
-    print("from_mos", from_mos)
-    print("to_mos", to_mos)
+    logging.debug("Transitions from MOs: {}".format(from_mos))
+    logging.debug("Transitions to MOs: {}".format( to_mos))
     handle_with_spin_flip = list()
-    for occ_spin, occ_ind in from_mos:
-        print("transition with spin ", occ_spin)
+    for occ_mo in from_mos:
+        occ_spin, occ_ind = occ_mo
+        logging.debug("Handling transition from "
+                      "MO {} with spin {}.".format(occ_ind, occ_spin)
+        )
         virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind in to_mos
                      if (occ_spin == virt_spin)]
-        # If we don't find matching orbital now then it must be in the
-        # spin flip list
+        # If we don't find a matching virtual orbital now then it must be in
+        # the spin flip list
         if len(virt_inds) == 0:
-            handle_with_spin_flip.append((occ_spin, occ_ind))
+            handle_with_spin_flip.append(occ_mo)
         elif len(virt_inds) == 1:
             mo_pairs.append((occ_ind, virt_inds[0][1]))
-            #to_mos.remove(virt_inds[0])
         else:
             logging.warning("Can't handle it.")
-    print("mo_pairs", mo_pairs)
     for occ_spin, occ_ind in handle_with_spin_flip:
         virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind in spin_flip_mos
                      if (occ_spin == virt_spin)]
         if len(virt_inds) == 1:
             mo_pairs.append((occ_ind, virt_inds[0][1]))
-
-
-    """
-    # Try to match occupations
-    mo_pairs = list()
-    print("From_mos", from_mos)
-    print("to_mos", to_mos)
-    for d_pair in from_mos:
-        ffirst_occ, ffirst_ind, fsec_occ, fsec_ind = d_pair
-        print("checking {} -> {}".format(ffirst_occ, fsec_occ))
-        if fsec_occ == "0":
-            new_occ = ffirst_occ
-        else:
-            print("transiton from {}".format(ffirst_occ))
-            new_occ = new_occ_dict[ffirst_occ]
-        print("new_occ", new_occ)
-        new_occs = (new_occ, "2")
-        print("new_occs", new_occs)
-        # If from_occ is 'u' ('d') then the newly occupied
-        # orbital must have 'd' ('u') or '2' occupation. 
-        # Find the target MO by chosing the MO with the right (new) occupation
-        new_inds = [tind for focc, find, tocc, tind in to_mos
-                    if tocc in new_occs]
-        print("new_inds", new_inds)
-        assert(len(new_inds) is 1)
-        to_ind = new_inds[0]
-        print("to_ind", to_ind)
-        mo_pairs.append(from_ind, to_ind)
-    return mo_pairs
-    """
-
-
-    """
-    for i, d in enumerate(diffs):
-        # Modify index i with offset because ndiff also outputs
-        # chars that are in c1 and not in c2 but in the end we
-        # just want whats in c2 and not in c1.
-        index_in_c2 = i - offset
-        previous_item = diffs[i-1]
-        # Look for differences in the second configuration compared
-        # to the first one.
-        if d.startswith("+"):
-            keep = (index_in_c2, d[-1])
-            # Check if difference originates from an occupied orbital
-            if index_in_c2 in occ_indices:
-                from_mos.append(keep)
-            # Check for double excitations
-            elif d.endswith("2"):
-                logging.warning("Double excitations not supported!")
-                return list()
-            # Otherwise the MO was formerly unoccupied. Then the 
-            # transition goes to this orbital.
-            else:
-                to_mos.append(keep)
-        elif d.startswith("-"):
-            # Only increment offset once here, because + and - always come in 
-            # pairs and only result in one additional list item.
-            offset += 1
-
-    spin_pairs = {
-        "u": "d",
-        "d": "u"
-    }
-    print(from_mos)
-    print(to_mos)
-
-    if (len(from_mos) is 1) and (len(to_mos) is 2):
-        # Get remaining occupation of from_mos[0]
-        remaining_occ = from_mos[0][-1]
-        print("remaining occ", remaining_occ)
-        # If the remaining occupation is 'u' ('d') then the newly occupied
-        # orbital must have 'd' ('u') or '2' occupation. 
-        new_occ_dict = {"u": ("d", "2"),
-                        "d": ("u", "2")
-        }
-        # Find the target MO by chosing the MO with the right (new) occupation
-        to_mos = [mo for mo in to_mos if mo[1] in new_occ_dict[remaining_occ]]
-        assert(len(to_mos) is 1)
-    if (len(from_mos) >= 2) or (len(to_mos) >= 2):
-        logging.warning("Double excitations not supported!")
-        return list()
-    # Correlate information in both lists
-    for from_tpl in from_mos:
-        i, from_spin = from_tpl
-        for to_tpl in to_mos:
-            j, to_spin = to_tpl
-            if to_spin is spin_pairs[from_spin]:
-                #mo_pairs.append((i, j))
-                mo_pairs = (i, j)
-                from_mos.remove(from_tpl)
-                to_mos.remove(to_tpl)
-                continue
-    """
 
     return mo_pairs
 
@@ -608,12 +387,11 @@ def set_mo_transitions(sf_states, trans_dict):
     # configurations for later printing
     mo_transitions = dict()
     for i, sfs in enumerate(sf_states):
-        print("STATE {}".format(sfs.state))
         # Filter for configurations with CI coefficients >= 0.2 (8%)
         conf_tpls = significant_confs(sfs.confs)
         for conf_tpl in conf_tpls:
             conf_id, whoot, conf, ci, weight = conf_tpl
-            mo_pairs = new_conf_diff(gs_conf, conf)
+            mo_pairs = conf_diff(gs_conf, conf)
             for mo_pair in mo_pairs:
                 transition = Transition(ground_state, sfs, mo_pair, -1, weight)
                 sfs.add_transition(transition)
