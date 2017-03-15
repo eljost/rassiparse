@@ -10,10 +10,10 @@
                 margin-bottom: 2%;
             }
             .mo {
-                height: 15%;
-                min-height: 10em;
-                width: 15%;
-                min-width: 10em;
+                height: 10%;
+                min-height: 5em;
+                width: 10%;
+                min-width: 5em;
                 border: 1px solid #000000;
                 padding: 1%;
             }
@@ -23,25 +23,36 @@
         </style>
     </head>
     <body>
-    {% for sfs in sf_states[1:] %}
+    {% for sfs in sf_states %}
     <div class="state">
         <h2>
-            S<sub>{{ sfs.state }}</sub>,
-            {{ sfs.sym }},
-            {{ "%.1f" | format(sfs.dE_gs_nm) }} nm,
-            {{ "%.2f" | format(sfs.dE_gs_eV) }} eV,
-            f={{ "%.4f" | format(sfs.osc) }}
+            {{ sfs.mult_label }}<sub>{{ sfs.state_rel }}</sub>,
+            Symmetry = {{ sfs.sym }},
+            λ = {{ "%.1f" | format(sfs.dE_gs_nm) }} nm,
+            ΔE = {{ "%.2f" | format(sfs.dE_gs_eV) }} eV,
+            f = {{ "%.4f" | format(sfs.osc) }}
         </h2>
-        <p>{{ sfs.confdiffs }}</p>
-        {#{% for start, end, weight in verbose_confs[state.key] %}
+        {% for cdi in sfs.confdiff_images %}
         <div>
             <figure>
-                <img class="mo" src="{{ imgs[state.key[0]][start] }}" />
-                <img class="mo" src="{{ imgs[state.key[0]][end] }}" />
-                <figcaption>{{ "%.1f" | format(weight*100) }}%</figcaption>
+                {% for from_mo, to_mo in cdi[1] %}
+                <img class="mo" src="{{ from_mo }}" />
+                <svg width="7em" height="4em">
+                  <defs>
+                    <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                      <path d="M0,0 L0,6 L9,3 z" fill="#000" />
+                    </marker>
+                  </defs>
+
+                  <line x1="0" y1="25" x2="150" y2="25" stroke="#000" stroke-width="3" marker-end="url(#arrow)" />
+                </svg>
+                <img class="mo" src="{{ to_mo }}" />
+                <br />
+                {% endfor %}
+                <figcaption>{{ "%.1f" | format(cdi[0]*100) }}%</figcaption>
             </figure>
         </div>
-        {% endfor %}#}
+        {% endfor %}
         </div>
         {% endfor %}
     </body>

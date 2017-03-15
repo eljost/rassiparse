@@ -333,16 +333,6 @@ def set_mo_transitions(sf_states, trans_dict):
 
 
 def make_html(sf_states, fn_base):
-    """
-
-        states.append({"id": i,
-                       "sym": irreps[jobiph],
-                       "Enm": Enm,
-                       "EeV": EeV,
-                       "f": f,
-                       "key": key_tpl
-        })
-    """
     j2_env = Environment(loader=FileSystemLoader(THIS_DIR,
                                                  followlinks=True))
     tpl = j2_env.get_template("templates/html.tpl")
@@ -412,6 +402,7 @@ def print_table_by_attr(objects, attrs, floatfmt=".4f"):
     print(tabulate(sfs_attrs, headers=headers,
                    tablefmt="fancy_grid", floatfmt=floatfmt))
 
+
 def load_mo_images(path):
     png_fns = [png for png in os.listdir(path)
                if png.endswith(".png")]
@@ -454,6 +445,7 @@ if __name__ == "__main__":
 
     with open(fn) as handle:
         text = handle.read()
+    fn_base = os.path.splitext(fn)[0]
 
     sf_states, trans_dict = parse_rassi(text)
     
@@ -479,10 +471,9 @@ if __name__ == "__main__":
                                             "mult", "sym", "dE_gs_eV",
                                             "dE_gs_nm", "osc", "confdiffs")
         )
-
-    fn_base = os.path.splitext(fn)[0]
-    if args.docx:
-        docx_attrs = ("state", "sym", "dE_gs_nm", "dE_gs_eV", "osc", "confdiffs")
-        make_docx(sf_states, docx_attrs, fn_base)
-    if args.html:
-        make_html(sf_states, fn_base)
+        fn_base_mult = "{}.mult{}".format(fn_base, mult)
+        if args.html:
+            make_html(by_mult, fn_base_mult)
+        if args.docx:
+            docx_attrs = ("state", "sym", "dE_gs_nm", "dE_gs_eV", "osc", "confdiffs")
+            make_docx(by_mult, docx_attrs, fn_base_mult)

@@ -1,31 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from WithHeader import WithHeader
-
-class ConfDiff(WithHeader):
-    headers = {
-        "delta_E": "ΔE / au",
-        "delta_E_eV": "ΔE / eV",
-        "delta_E_nm": "ΔE / nm",
-        "osc": "f",
-    }
+class ConfDiff:
     
     def __init__(self, mo_pairs, weight):
-        super(ConfDiff, self).__init__()
 
         if mo_pairs == []:
             mo_pairs = None
         self.mo_pairs = mo_pairs
         self.weight = weight
-        self.mo_nums = None
 
-    def set_mo_nums(self, mo_num_list):
+    def set_mo_nums_images(self, mo_num_list, mo_images):
         if not self.mo_pairs:
             return
-        self.mo_nums = [(mo_num_list[from_mo], mo_num_list[to_mo])
-                        for from_mo, to_mo
-                        in self.mo_pairs]
+        self.mo_nums = list()
+        self.mo_images = list()
+        for from_mo, to_mo in self.mo_pairs:
+            self.mo_nums.append(
+                        (mo_num_list[from_mo], mo_num_list[to_mo])
+            )
+            self.mo_images.append(
+                        (mo_images[from_mo], mo_images[to_mo])
+            )
 
     def __str__(self):
         if not self.mo_pairs:
