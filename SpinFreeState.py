@@ -38,6 +38,7 @@ class SpinFreeState(WithHeader):
 
     @property
     def confdiffs(self):
+        #if not (self.mo_nums and self.mo_fns):
         return ", ".join([str(t) for t in self._confdiffs])
 
     def add_confdiff(self, confdiff):
@@ -53,3 +54,10 @@ class SpinFreeState(WithHeader):
         self.dE_gs_eV = self.dE_gs * self.hartree2eV
         self.dE_gs_nm = self.hartree2nm / self.dE_gs
         self.osc = osc
+
+    def set_images(self, image_list):
+        mo_nums, mo_fns, = zip(*[mo_tpl for mo_tpl in image_list])
+        self.mo_nums = mo_nums
+        self.mo_fns = mo_fns
+        for cd in self._confdiffs:
+            cd.set_mo_nums(self.mo_nums)

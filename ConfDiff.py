@@ -15,12 +15,26 @@ class ConfDiff(WithHeader):
         super(ConfDiff, self).__init__()
 
         if mo_pairs == []:
-            mo_pairs = [("?", "?")]
+            mo_pairs = None
         self.mo_pairs = mo_pairs
         self.weight = weight
+        self.mo_nums = None
 
-        self.mo_pair_str = ", ".join(["{} -> {}".format(from_, to)
-                                     for from_, to in self.mo_pairs])
+    def set_mo_nums(self, mo_num_list):
+        if not self.mo_pairs:
+            return
+        self.mo_nums = [(mo_num_list[from_mo], mo_num_list[to_mo])
+                        for from_mo, to_mo
+                        in self.mo_pairs]
 
     def __str__(self):
-        return "{} ({:.1%})".format(self.mo_pair_str, self.weight)
+        if not self.mo_pairs:
+            return "({:.1%})".format(self.weight)
+        if self.mo_nums:
+            iterate_over = self.mo_nums
+        else:
+            iterate_over = self.mo_pairs
+
+        mo_pair_str = ", ".join(["{} -> {}".format(from_, to)
+                                     for from_, to in iterate_over])
+        return "{} ({:.1%})".format(mo_pair_str, self.weight)

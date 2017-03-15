@@ -6,7 +6,7 @@ from collections import namedtuple, OrderedDict
 import logging
 logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.DEBUG)
-import os.path
+import os
 import re
 import sys
 
@@ -340,30 +340,6 @@ def set_mo_transitions(sf_states, trans_dict):
             sfs.add_confdiff(cd)
 
 
-def blub():
-    """
-    if active_spaces:
-        mo_pairs = conf_diff(gs_conf, conf)
-        print(mo_pairs)
-        if not mo_pairs:
-            continue
-        from_index, to_index = mo_pairs
-        # Convert the key to a string because our dict
-        # we loaded from the .json-file has string-keys
-        jobiph_mos = active_spaces[sfs.jobiph]
-        verbose_from = jobiph_mos[from_index]
-        verbose_to = jobiph_mos[to_index]
-        # Save information in verbose_confs_dict for later
-        # printing.
-        # Use a tuple holding the jobiph number and the root
-        # as key.
-        id_tpl = (jobiph, root_num)
-        verbose_tpl = (verbose_from, verbose_to, weight)
-        verbose_confs_dict.setdefault(sfs.state,
-                                      list()).append(verbose_tpl)
-    """
-
-
 def make_html(sf_states, fn_base):
     """
 
@@ -444,6 +420,30 @@ def print_table_by_attr(objects, attrs, floatfmt=".4f"):
     print(tabulate(sfs_attrs, headers=headers,
                    tablefmt="fancy_grid", floatfmt=floatfmt))
 
+def load_mo_images(path):
+    png_fns = [png for png in os.listdir(path)
+               if png.endswith(".png")]
+    # Filter for MO imgs with matching names
+    # mo_156.job001.png
+    mo_re = "mo_(\d+)(?:\.job)(\d+)?\.png"
+    img_dict = dict()
+    for png in png_fns:
+        mobj = re.match(mo_re, png)
+        if mobj:
+            mo = int(mobj.groups()[0])
+            job = int(mobj.groups()[1])
+            img_dict.setdefault(job, list()).append((mo, png))
+    for job in img_dict:
+        img_dict[job] = sorted(img_dict[job], key=lambda tpl: tpl[0])
+
+    return img_dict
+
+
+def set_images(sf_states, image_dict):
+    for sfs in sf_states:
+        images_for_jobiph = image_dict[sfs.jobiph]
+        sfs.set_images(images_for_jobiph)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse a &rassi-output" \
@@ -458,11 +458,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     fn = args.fn
 
+    # Try to load the MO images
+    image_dict = load_mo_images(".")
+
     with open(fn) as handle:
         text = handle.read()
 
-    active_spaces, imgs, irreps = load_json(fn)
-    sf_states, trans_dict= parse_rassi(text)
+    #active_spaces, imgs, irreps = load_json(fn)
+    sf_states, trans_dict = parse_rassi(text)
     
     print_table_by_attr(sf_states, attrs=("state", "root", "mult",
                                           "dE_global_eV"))
@@ -471,6 +474,7 @@ if __name__ == "__main__":
     for mult in grouped_by_mult:
         by_mult = grouped_by_mult[mult]
         set_mo_transitions(by_mult, trans_dict)
+        set_images(by_mult, image_dict)
         print_table_by_attr(by_mult, attrs=("state", "root", "mult",
                                             "dE_gs_eV", "osc", "confdiffs")
         )
