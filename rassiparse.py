@@ -4,7 +4,7 @@
 import argparse
 from collections import namedtuple, OrderedDict
 import logging
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.DEBUG)
 import os
 import re
@@ -268,7 +268,10 @@ def conf_diff(c1, c2):
         # (u -> d) or (d -> u). This equals the transition of
         # two electrons.
         else:
-            assert(len(trans_list) == 2)
+            from_tpl = (first_occ[-1], ind)
+            to_tpl = (sec_occ[-1], ind)
+            from_mos.append(from_tpl)
+            to_mos.append(to_tpl)
             spin_flip_mos.extend(trans_list)
 
     logging.debug("Transitions from MOs: {}".format(from_mos))
@@ -281,24 +284,13 @@ def conf_diff(c1, c2):
         )
         virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind in to_mos
                      if (occ_spin == virt_spin)]
-        # If we don't find a matching virtual orbital now then it must be in
-        # the spin flip list
-        if len(virt_inds) == 0:
-            handle_with_spin_flip.append(occ_mo)
-        elif len(virt_inds) == 1:
+        if len(virt_inds) == 1:
             mo_pairs.append((occ_ind, virt_inds[0][1]))
+            to_mos.remove(virt_inds[0])
         else:
             # Don't return anything because this state can't be described
             # completly without considering all MO transitions.
             logging.warning("Ambiguous transitions. Can't handle this.")
-            return []
-    for occ_spin, occ_ind in handle_with_spin_flip:
-        virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind
-                     in spin_flip_mos if (occ_spin == virt_spin)]
-        if len(virt_inds) == 1:
-            mo_pairs.append((occ_ind, virt_inds[0][1]))
-        else:
-            logging.warning("Can't handle this.")
             return []
 
     return mo_pairs
@@ -424,7 +416,6 @@ def load_mo_images(path):
     png_fns = [png for png in os.listdir(path)
                if png.endswith(".png")]
     # Filter for MO imgs with matching names
-    # mo_156.job001.png
     mo_re = "mo_(\d+)(?:\.job)(\d+)?\.png"
     img_dict = dict()
     for png in png_fns:
@@ -446,9 +437,9 @@ def set_images(sf_states, image_dict):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Parse a &rassi-output" \
-                                     " from MOLCAS.")
-    parser.add_argument("fn", help="Filename of the RASSI-file.")
+    parser = argparse.ArgumentParser(
+                        description="Parse a &rassi-output from MOLCAS.")
+    parser.add_argument("fn", help="Filename of the RASSI-output.")
     parser.add_argument("--sym", nargs="+", default=None,
             help="Symmetries of the WF in the JobIph-files.")
     parser.add_argument("--docx", action="store_true",
@@ -464,7 +455,6 @@ if __name__ == "__main__":
     with open(fn) as handle:
         text = handle.read()
 
-    #active_spaces, imgs, irreps = load_json(fn)
     sf_states, trans_dict = parse_rassi(text)
     
     print_table_by_attr(sf_states, attrs=("state", "root", "mult",
@@ -474,9 +464,20 @@ if __name__ == "__main__":
     for mult in grouped_by_mult:
         by_mult = grouped_by_mult[mult]
         set_mo_transitions(by_mult, trans_dict)
-        set_images(by_mult, image_dict)
-        print_table_by_attr(by_mult, attrs=("state", "root", "mult",
-                                            "dE_gs_eV", "osc", "confdiffs")
+        by_mult = sorted(by_mult, key=lambda sfs: sfs.dE_gs_eV)
+        # Add a new numbering according to the energy of the states.
+        # The ground state is 0.
+        [setattr(sfs, "state_rel", i) for i, sfs in enumerate(by_mult)]
+        try:
+            set_images(by_mult, image_dict)
+        except KeyError:
+            jobiphs = set([sfs.jobiph for sfs in by_mult])
+            jobiph_strings = ["JOB{:0>3}".format(j) for j in jobiphs]
+            logging.warning("Couldn't find MO images for "
+                            "states {}".format(jobiph_strings))
+        print_table_by_attr(by_mult, attrs=("state_rel", "state", "root",
+                                            "mult", "sym", "dE_gs_eV",
+                                            "dE_gs_nm", "osc", "confdiffs")
         )
 
     fn_base = os.path.splitext(fn)[0]

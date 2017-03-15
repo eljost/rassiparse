@@ -15,6 +15,7 @@ class SpinFreeState(WithHeader):
         "dE_global": ("ΔE / au", "{:.2f}"),
         "dE_global_eV": ("ΔE / eV", "{:.2f}"),
 
+        "state_rel" : ("#", "{}"),
         "dE_gs": ("ΔE / au", "{:.2f}"),
         "dE_gs_eV": ("ΔE / eV", "{:.2f}"),
         "dE_gs_nm": ("λ / nm", "{:.1f}"),
@@ -38,7 +39,6 @@ class SpinFreeState(WithHeader):
 
     @property
     def confdiffs(self):
-        #if not (self.mo_nums and self.mo_fns):
         return ", ".join([str(t) for t in self._confdiffs])
 
     def add_confdiff(self, confdiff):
