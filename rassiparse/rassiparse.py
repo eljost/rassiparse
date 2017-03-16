@@ -16,7 +16,6 @@ import numpy as np
 import simplejson as json
 from tabulate import tabulate
 
-from helper_funcs import chunks
 import rex
 from SpinFreeState import SpinFreeState
 from ConfDiff import ConfDiff
@@ -74,6 +73,10 @@ def make_html(sf_states, fn_base):
                 os.getcwd(), fn_base + ".single.html")
     with open(single_fn, "w") as handle:
         handle.write(single_rendered)
+
+def chunks(lst, n):
+    for i in range(0, len(lst), n):
+        yield lst[i:i+n]
 
 
 def parse_state(text):
