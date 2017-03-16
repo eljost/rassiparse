@@ -5,7 +5,7 @@ import argparse
 from collections import namedtuple, OrderedDict
 import logging
 #logging.basicConfig(level=logging.INFO)
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 import os
 import re
 import sys
@@ -32,7 +32,8 @@ def make_docx(sf_states, attrs, fn_base):
     trans_fmt = "{} → {}"
     weight_fmt = "{:.0%}"
 
-    sfs_attrs = [sfs.as_str_list(attrs) for sfs in sf_states]
+    sfs_attrs = [sfs.as_str_list(attrs, newlines=True)
+                 for sfs in sf_states]
     headers = sf_states[0].get_headers(attrs)
 
     # Prepare the document and the table
@@ -52,6 +53,18 @@ def make_docx(sf_states, attrs, fn_base):
             cell.text = str(item)
     # Save the document
     doc.save(docx_fn)
+
+
+def make_html(sf_states, fn_base):
+    j2_env = Environment(loader=FileSystemLoader(THIS_DIR,
+                                                 followlinks=True))
+    tpl = j2_env.get_template("templates/html.tpl")
+
+    rendered = tpl.render(sf_states=sf_states)
+    out_fn = os.path.join(
+                os.getcwd(), fn_base + ".html")
+    with open(out_fn, "w") as handle:
+        handle.write(rendered)
 
 
 def parse_state(text):
@@ -332,18 +345,6 @@ def set_mo_transitions(sf_states, trans_dict):
             sfs.add_confdiff(cd)
 
 
-def make_html(sf_states, fn_base):
-    j2_env = Environment(loader=FileSystemLoader(THIS_DIR,
-                                                 followlinks=True))
-    tpl = j2_env.get_template("templates/html.tpl")
-
-    rendered = tpl.render(sf_states=sf_states)
-    out_fn = os.path.join(
-                os.getcwd(), fn_base + ".html")
-    with open(out_fn, "w") as handle:
-        handle.write(rendered)
-
-
 def get_img_nums(path):
     png_fns = [f for f in os.listdir(path) if f.endswith(".png")]
     mo_mobjs = [re.match("mo_(\d+).+\.png", png) for png in png_fns]
@@ -437,6 +438,7 @@ if __name__ == "__main__":
             help="Export data to a .docx-table.")
     parser.add_argument("--html", action="store_true",
             help="Export data to a .html-file.")
+    parser.add_argument("--gsroot", nargs="+")
     args = parser.parse_args()
     fn = args.fn
 
@@ -469,11 +471,13 @@ if __name__ == "__main__":
                             "states {}".format(jobiph_strings))
         print_table_by_attr(by_mult, attrs=("state_rel", "state", "root",
                                             "mult", "sym", "dE_gs_eV",
-                                            "dE_gs_nm", "osc", "confdiffs")
+                                            "dE_gs_nm", "osc", "confdiffsw",)
         )
         fn_base_mult = "{}.mult{}".format(fn_base, mult)
         if args.html:
             make_html(by_mult, fn_base_mult)
         if args.docx:
-            docx_attrs = ("state", "sym", "dE_gs_nm", "dE_gs_eV", "osc", "confdiffs")
+            docx_attrs = ("state_rel", "sym", "dE_gs_nm",
+                          "dE_gs_eV", "osc", "confdiffs",
+                          "weights")
             make_docx(by_mult, docx_attrs, fn_base_mult)

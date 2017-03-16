@@ -27,6 +27,7 @@
     <div class="state">
         <h2>
             {{ sfs.mult_label }}<sub>{{ sfs.state_rel }}</sub>,
+            State {{ sfs.state }},
             Symmetry = {{ sfs.sym }},
             λ = {{ "%.1f" | format(sfs.dE_gs_nm) }} nm,
             ΔE = {{ "%.2f" | format(sfs.dE_gs_eV) }} eV,
@@ -35,6 +36,7 @@
         {% for cdi in sfs.confdiff_images %}
         <div>
             <figure>
+                <figcaption>{{ "%.1f" | format(cdi[0]*100) }}%</figcaption>
                 {% for from_mo, to_mo in cdi[1] %}
                 <img class="mo" src="{{ from_mo }}" />
                 <svg width="7em" height="4em">
@@ -49,7 +51,6 @@
                 <img class="mo" src="{{ to_mo }}" />
                 <br />
                 {% endfor %}
-                <figcaption>{{ "%.1f" | format(cdi[0]*100) }}%</figcaption>
             </figure>
         </div>
         {% endfor %}

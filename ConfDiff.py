@@ -23,14 +23,20 @@ class ConfDiff:
                         (mo_images[from_mo], mo_images[to_mo])
             )
 
-    def __str__(self):
+    def str_with_weight(self):
         if not self.mo_pairs:
             return "({:.1%})".format(self.weight)
+        mo_pair_str = self.__str__()
+        return "{} ({:.1%})".format(mo_pair_str, self.weight)
+
+    def __str__(self):
+        if not self.mo_pairs:
+            return ""
+            #return None
         if self.mo_nums:
             iterate_over = self.mo_nums
         else:
             iterate_over = self.mo_pairs
 
-        mo_pair_str = ", ".join(["{} -> {}".format(from_, to)
-                                     for from_, to in iterate_over])
-        return "{} ({:.1%})".format(mo_pair_str, self.weight)
+        return ", ".join(["{} → {}".format(from_, to)
+                         for from_, to in iterate_over])
