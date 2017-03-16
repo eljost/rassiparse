@@ -13,7 +13,6 @@ import sys
 from docx import Document
 from jinja2 import Environment, FileSystemLoader
 import numpy as np
-import simplejson as json
 from tabulate import tabulate
 
 import rex
