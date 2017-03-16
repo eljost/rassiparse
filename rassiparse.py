@@ -56,15 +56,24 @@ def make_docx(sf_states, attrs, fn_base):
 
 
 def make_html(sf_states, fn_base):
-    j2_env = Environment(loader=FileSystemLoader(THIS_DIR,
-                                                 followlinks=True))
-    tpl = j2_env.get_template("templates/html.tpl")
+    j2_env = Environment(loader=FileSystemLoader(
+                                    os.path.join(THIS_DIR, "templates"),
+                                    followlinks=True))
+    trans_tpl = j2_env.get_template("rassi_trans.tpl")
 
-    rendered = tpl.render(sf_states=sf_states)
-    out_fn = os.path.join(
-                os.getcwd(), fn_base + ".html")
-    with open(out_fn, "w") as handle:
-        handle.write(rendered)
+    trans_rendered = trans_tpl.render(sf_states=sf_states)
+    trans_fn = os.path.join(
+                os.getcwd(), fn_base + ".trans.html")
+    with open(trans_fn, "w") as handle:
+        handle.write(trans_rendered)
+
+    single_tpl = j2_env.get_template("rassi_single.tpl")
+
+    single_rendered = single_tpl.render(sf_states=sf_states)
+    single_fn = os.path.join(
+                os.getcwd(), fn_base + ".single.html")
+    with open(single_fn, "w") as handle:
+        handle.write(single_rendered)
 
 
 def parse_state(text):
@@ -234,7 +243,6 @@ def conf_diff(c1, c2):
     # Prepare lists that hold the information about the transitions
     from_mos = list()
     to_mos = list()
-    spin_flip_mos = list()
     mo_pairs = list()
 
     logging.debug("Got c1: {}".format(c1))
@@ -285,7 +293,6 @@ def conf_diff(c1, c2):
             to_tpl = (sec_occ[-1], ind)
             from_mos.append(from_tpl)
             to_mos.append(to_tpl)
-            spin_flip_mos.extend(trans_list)
 
     logging.debug("Transitions from MOs: {}".format(from_mos))
     logging.debug("Transitions to MOs: {}".format( to_mos))
@@ -345,45 +352,30 @@ def set_mo_transitions(sf_states, trans_dict):
             sfs.add_confdiff(cd)
 
 
+def set_single_mos(sfs):
+    single_mos = list()
+    for conf_line in significant_confs(sfs.confs):
+        conf = conf_line[2].replace(" ", "")
+        images_spins = [(sfs.mo_images[i], spin) for i, spin in enumerate(conf)
+                         if spin in ("u", "d")]
+        weight = conf_line[-1]
+        if images_spins:
+            images, spins = zip(*images_spins)
+            smo = (weight, images, spins)
+        else:
+            # This applies to close shell configuration with no singly
+            # occupied MOs.
+            smo = (weight, [], [])
+        single_mos.append(smo)
+    sfs.single_mos = single_mos
+
+
 def get_img_nums(path):
     png_fns = [f for f in os.listdir(path) if f.endswith(".png")]
     mo_mobjs = [re.match("mo_(\d+).+\.png", png) for png in png_fns]
     mo_nums = [int(mobj.groups()[0]) for mobj in mo_mobjs]
     mo_nums = sorted(list(set(mo_nums)))
     return mo_nums
-
-
-def load_json(fn):
-    verbose_fn = os.path.splitext(fn)[0] + ".json"
-    try:
-        with open(verbose_fn) as handle:
-            json_data = json.load(handle, object_pairs_hook=OrderedDict)
-    except IOError:
-        active_spaces = None
-        # When no .json file is defined try to look for pictures in the
-        # current directory and try to use them.
-        imgs = get_img_nums(".")
-        # Create a fake 'irreps' dict were all jobiphs belong to
-        # the totalsymmetric irrep 'A'
-        irreps = {i: "A" for i in range(8)}
-        logging.warning("Irrep-Hack used!")
-        return active_spaces, imgs, irreps
-
-    active_spaces = {int(key): json_data[key]["as"] for key in json_data}
-    irreps = {int(key): json_data[key]["irrep"] for key in json_data}
-    imgs = dict()
-    for key in json_data:
-        for_jobiph = json_data[key]
-        if len(irreps) > 1:
-            img_fns = ["mo_{}.irrep{}.png".format(img, key)
-                       for img in for_jobiph["imgs"]]
-        else:
-            img_fns = ["mo_{}.png".format(img) for img in for_jobiph["imgs"]]
-        as_ = for_jobiph["as"]
-        img_dict = {mo: img_fn for mo, img_fn in zip(as_, img_fns)}
-        imgs[int(key)] = img_dict
-
-    return active_spaces, imgs, irreps
 
 
 def group_sf_states_by(sf_states, attr):
@@ -464,6 +456,7 @@ if __name__ == "__main__":
         [setattr(sfs, "state_rel", i) for i, sfs in enumerate(by_mult)]
         try:
             set_images(by_mult, image_dict)
+            [set_single_mos(sfs) for sfs in by_mult]
         except KeyError:
             jobiphs = set([sfs.jobiph for sfs in by_mult])
             jobiph_strings = ["JOB{:0>3}".format(j) for j in jobiphs]

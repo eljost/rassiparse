@@ -83,6 +83,8 @@ class SpinFreeState(WithHeader):
 
     def set_images(self, image_list):
         mo_nums, mo_images, = zip(*[mo_tpl for mo_tpl in image_list])
+        self.mo_nums = mo_nums
+        self.mo_images = mo_images
         for cd in self._confdiffs:
             cd.set_mo_nums_images(mo_nums, mo_images)
 
