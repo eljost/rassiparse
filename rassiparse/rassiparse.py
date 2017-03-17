@@ -118,7 +118,6 @@ def parse_rassi(text):
         unique_state_ids.append(state)
     logging.info("Found {} states.".format(len(states)))
 
-
     lines = text.split("\n")
     # Get dipole transition strengths
     trans_tpl = (int, int, float, float, float, float, float)
@@ -135,6 +134,8 @@ def parse_rassi(text):
     energy_re = "::    RASSI State\s+\d+\s+Total energy:"
     energies = rex.find_floats(text, energy_re)
 
+    energy_shifts = rex.find_floats(text, "\(Shifted by EVAC \(a\.u\.\) =")
+
     # Check if RASSI changed the ordering of the states. For this
     # compare the ordering in "HAMILTON MATRIX FOR THE ORIGINAL
     # STATES" to the ordering in the "RASSI State" table and
@@ -150,18 +151,9 @@ def parse_rassi(text):
     )
     org_ens = org_ens_match_obj.groups()[0]
     org_ens = [float(n) for n in org_ens.strip().split()]
-    # Find indices of the original energies in the RASSI State energies
-    inds = [energies.index(oe) for oe in org_ens]
-    if inds != list(range(len(inds))):
+    if not np.all(np.isclose(energies, org_ens)):
         logging.warning("Swapping of states detected!")
         sys.exit()
-
-    """
-    # Now reorder the roots and their indices
-    # trans and energies are already in the right order
-    confs = np.array(confs)[inds]
-    id_tpls = np.array(id_tpls)[inds]
-    """
 
     energies = np.array(energies)
     gs_energy = energies.min()
