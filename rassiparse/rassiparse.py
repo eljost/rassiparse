@@ -461,8 +461,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
                         description="Parse a &rassi-output from MOLCAS.")
     parser.add_argument("fn", help="Filename of the RASSI-output.")
-    parser.add_argument("--sym", nargs="+", default=None,
-            help="Symmetries of the WF in the JobIph-files.")
     parser.add_argument("--docx", action="store_true",
             help="Export data to a .docx-table.")
     parser.add_argument("--html", action="store_true",
