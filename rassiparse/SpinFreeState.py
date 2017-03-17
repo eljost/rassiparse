@@ -51,17 +51,20 @@ class SpinFreeState(WithHeader):
 
         self._confdiffs = list()
 
+    def _cds_sorted(self):
+        return sorted([cd for cd in self._confdiffs], key=lambda cd: -cd.weight)
+
     @property
     def confdiffsw(self):
-        return ", ".join([cd.str_with_weight() for cd in self._confdiffs])
+        return ", ".join([cd.str_with_weight() for cd in self._cds_sorted()])
 
     @property
     def confdiffs(self):
-        return ", ".join([str(cd) for cd in self._confdiffs])
+        return ", ".join([str(cd) for cd in self._cds_sorted()])
 
     @property
     def confdiff_images(self):
-        return [(cd.weight, cd.mo_images) for cd in self._confdiffs]
+        return [(cd.weight, cd.mo_images) for cd in self._cds_sorted()]
 
     def add_confdiff(self, confdiff):
         self._confdiffs.append(confdiff)

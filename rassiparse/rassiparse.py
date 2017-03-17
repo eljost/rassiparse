@@ -4,7 +4,7 @@
 import argparse
 from collections import namedtuple, OrderedDict
 import logging
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.DEBUG)
 import os
 import re
@@ -399,7 +399,7 @@ def handle_rassi(sf_states, trans_dict, ground_state):
         except KeyError:
             osc = 0
             logging.warning("Oscillator strength below threshold for "
-                            "transition between states {} -> {}!".format(
+                            "transition {} -> {}!".format(
                                 *trans_tpl)
             )
         sfs.set_ground_state(ground_state, osc)
