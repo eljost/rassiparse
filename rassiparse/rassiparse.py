@@ -4,8 +4,6 @@
 import argparse
 from collections import namedtuple, OrderedDict
 import logging
-#logging.basicConfig(level=logging.INFO)
-#logging.basicConfig(level=logging.DEBUG)
 import os
 import re
 import sys
@@ -472,6 +470,10 @@ if __name__ == "__main__":
     parser.add_argument("--gs", type=int, default=None,
             help="Set global ground state that will be used to determine "
                  "difference between configurations.")
+    parser.add_argument("--info", action="store_true",
+            help="Printing of additional information.")
+    parser.add_argument("--debug", action="store_true",
+            help="Printing of even more information.")
     args = parser.parse_args()
 
     sf_states_attrs = ("state", "root", "mult", "dE_global_eV")
@@ -481,6 +483,11 @@ if __name__ == "__main__":
     docx_attrs = ("state_rel", "sym", "dE_gs_nm", "dE_gs_eV", "osc",
                   "confdiffs", "weights"
     )
+
+    if args.info:
+        logging.basicConfig(level=logging.INFO)
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     with open(args.fn) as handle:
         text = handle.read()
