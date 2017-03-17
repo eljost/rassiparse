@@ -318,27 +318,8 @@ def conf_diff(c1, c2):
     return mo_pairs
 
 
-def set_mo_transitions(sf_states, trans_dict):
-    sf_states = sorted(sf_states, key=lambda sfs: sfs.energy)
-    # Determine ground state based on state with minimum energy
-    ground_state = sf_states[0]
-    gs_conf_line = significant_confs(ground_state.confs)[0]
-    gs_conf = gs_conf_line[2]
-    gs_weight = gs_conf_line[4]
-    logging.info("Found {} GS configuration ({:.1%}) in state {}.".format(
-        gs_conf, gs_weight, ground_state.state))
-
+def set_mo_transitions(sf_states, trans_dict, gs_conf):
     for sfs in sf_states:
-        trans_tpl = (ground_state.state, sfs.state)
-        try:
-            osc = trans_dict[trans_tpl]
-        except KeyError:
-            osc = 0
-            logging.warning("Oscillator strength below threshold for "
-                            "transition between states {} -> {}!".format(
-                                *trans_tpl)
-            )
-        sfs.set_ground_state(ground_state, osc)
         logging.info("Checking state {} from JobIph {}".format(
             sfs.state, sfs.state)
         )
@@ -422,6 +403,38 @@ def set_images(sf_states, image_dict):
         sfs.set_images(images_for_jobiph)
 
 
+def handle_rassi(sf_states, trans_dict, ground_state=None):
+    if not ground_state:
+        ground_state = sorted(sf_states, key=lambda sfs: sfs.energy)[0]
+    # Determine ground state configuration based on state with
+    # minimum energy.
+    gs_conf_line = significant_confs(ground_state.confs)[0]
+    gs_conf = gs_conf_line[2]
+    gs_weight = gs_conf_line[-1]
+    logging.info("Found {} GS configuration ({:.1%}) in state {}.".format(
+        gs_conf, gs_weight, ground_state.state))
+    for sfs in sf_states:
+        trans_tpl = (ground_state.state, sfs.state)
+        try:
+            osc = trans_dict[trans_tpl]
+        except KeyError:
+            osc = 0
+            logging.warning("Oscillator strength below threshold for "
+                            "transition between states {} -> {}!".format(
+                                *trans_tpl)
+            )
+        sfs.set_ground_state(ground_state, osc)
+
+    set_mo_transitions(sf_states, trans_dict, gs_conf)
+    # Sort by energy difference to the ground state
+    sf_states = sorted(sf_states, key=lambda sfs: sfs.dE_gs_eV)
+    # Add a new numbering according to the energy of the states.
+    # The ground state is 0.
+    [setattr(sfs, "state_rel", i) for i, sfs in enumerate(sf_states)]
+
+    return sf_states
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
                         description="Parse a &rassi-output from MOLCAS.")
@@ -434,28 +447,31 @@ if __name__ == "__main__":
             help="Export data to a .html-file.")
     parser.add_argument("--gsroot", nargs="+")
     args = parser.parse_args()
-    fn = args.fn
+
+    sf_states_attrs = ("state", "root", "mult", "dE_global_eV")
+    by_mult_attrs = ("state_rel", "state", "root", "mult", "sym",
+                     "dE_gs_eV", "dE_gs_nm", "osc", "confdiffsw"
+    )
+    docx_attrs = ("state_rel", "sym", "dE_gs_nm", "dE_gs_eV", "osc",
+                  "confdiffs", "weights"
+    )
+
 
     # Try to load the MO images
     image_dict = load_mo_images(".")
 
-    with open(fn) as handle:
+    with open(args.fn) as handle:
         text = handle.read()
-    fn_base = os.path.splitext(fn)[0]
+    fn_base = os.path.splitext(args.fn)[0]
+    fn_base_fmt = "{}.mult{}"
 
     sf_states, trans_dict = parse_rassi(text)
-    
-    print_table_by_attr(sf_states, attrs=("state", "root", "mult",
-                                          "dE_global_eV"))
+
+    print_table_by_attr(sf_states, sf_states_attrs)
 
     grouped_by_mult = group_sf_states_by(sf_states, "mult")
     for mult in grouped_by_mult:
-        by_mult = grouped_by_mult[mult]
-        set_mo_transitions(by_mult, trans_dict)
-        by_mult = sorted(by_mult, key=lambda sfs: sfs.dE_gs_eV)
-        # Add a new numbering according to the energy of the states.
-        # The ground state is 0.
-        [setattr(sfs, "state_rel", i) for i, sfs in enumerate(by_mult)]
+        by_mult = handle_rassi(grouped_by_mult[mult], trans_dict)
         try:
             set_images(by_mult, image_dict)
             [set_single_mos(sfs) for sfs in by_mult]
@@ -464,15 +480,9 @@ if __name__ == "__main__":
             jobiph_strings = ["JOB{:0>3}".format(j) for j in jobiphs]
             logging.warning("Couldn't find MO images for "
                             "states {}".format(jobiph_strings))
-        print_table_by_attr(by_mult, attrs=("state_rel", "state", "root",
-                                            "mult", "sym", "dE_gs_eV",
-                                            "dE_gs_nm", "osc", "confdiffsw",)
-        )
-        fn_base_mult = "{}.mult{}".format(fn_base, mult)
+        print_table_by_attr(by_mult, by_mult_attrs)
+        fn_base_mult = fn_base_fmt.format(fn_base, mult)
         if args.html:
             make_html(by_mult, fn_base_mult)
         if args.docx:
-            docx_attrs = ("state_rel", "sym", "dE_gs_nm",
-                          "dE_gs_eV", "osc", "confdiffs",
-                          "weights")
             make_docx(by_mult, docx_attrs, fn_base_mult)
