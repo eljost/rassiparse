@@ -522,5 +522,6 @@ if __name__ == "__main__":
 
     print_table_by_attr(sf_states, sf_states_attrs)
     for mult in grouped_by_mult:
-        by_mult = grouped_by_mult[mult]
+        # Hmm, this should be handled in a different way
+        by_mult = sorted(grouped_by_mult[mult], key=lambda sfs: sfs.dE_gs_eV)
         print_table_by_attr(by_mult, by_mult_attrs)
