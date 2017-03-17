@@ -383,14 +383,20 @@ def load_mo_images(path):
     png_fns = [png for png in os.listdir(path)
                if png.endswith(".png")]
     # Filter for MO imgs with matching names
-    mo_re = "mo_(\d+)(?:\.job)(\d+)?\.png"
+    mo_re = "mo_(\d+)(?:\.job)?(\d+)?\.png"
     img_dict = dict()
     for png in png_fns:
         mobj = re.match(mo_re, png)
         if mobj:
             mo = int(mobj.groups()[0])
-            job = int(mobj.groups()[1])
+            job = mobj.groups()[1]
+            # We expect a rassi with only one jobiph
+            if not job:
+                job = 1
+            else:
+                job = int(job)
             img_dict.setdefault(job, list()).append((mo, png))
+
     for job in img_dict:
         img_dict[job] = sorted(img_dict[job], key=lambda tpl: tpl[0])
 
