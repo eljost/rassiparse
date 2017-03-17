@@ -10,6 +10,8 @@ class ConfDiff:
         self.mo_pairs = mo_pairs
         self.weight = weight
 
+        self.mo_nums = None
+
     def set_mo_nums_images(self, mo_num_list, mo_images):
         if not self.mo_pairs:
             return
