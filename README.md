@@ -1,9 +1,9 @@
-# rassiparse
-Requires:
+# rassiparse.py
+## Requirements
+rassiparse uses python3 and the following libraries:
 
-    python3
     jinja2
     python-docx
-    numpy   
+    numpy
     simplejson
     tabulate
