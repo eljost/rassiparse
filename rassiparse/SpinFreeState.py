@@ -104,3 +104,6 @@ class SpinFreeState(WithHeader):
 
         return str_list
 
+    def __str__(self):
+        return "SpinFreeState {} from JOB{:0>3}".format(self.state,
+                                                        self.jobiph)

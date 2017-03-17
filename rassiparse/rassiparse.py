@@ -409,12 +409,14 @@ def set_images(sf_states, image_dict):
         sfs.set_images(images_for_jobiph)
 
 
-def handle_rassi(sf_states, trans_dict, ground_state=None):
+def handle_rassi(sf_states, trans_dict, ground_state):
     if not ground_state:
         ground_state = sorted(sf_states, key=lambda sfs: sfs.energy)[0]
     # Determine ground state configuration based on state with
-    # minimum energy.
-    gs_conf_line = significant_confs(ground_state.confs)[0]
+    # minimum energy. Sort the significant confs by weight.
+    sig_confs= sorted(significant_confs(ground_state.confs),
+                                        key=lambda c: -c[-1])
+    gs_conf_line = sig_confs[0]
     gs_conf = gs_conf_line[2]
     gs_weight = gs_conf_line[-1]
     logging.info("Found {} GS configuration ({:.1%}) in state {}.".format(
@@ -438,8 +440,6 @@ def handle_rassi(sf_states, trans_dict, ground_state=None):
     # The ground state is 0.
     [setattr(sfs, "state_rel", i) for i, sfs in enumerate(sf_states)]
 
-    return sf_states
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -451,7 +451,9 @@ if __name__ == "__main__":
             help="Export data to a .docx-table.")
     parser.add_argument("--html", action="store_true",
             help="Export data to a .html-file.")
-    parser.add_argument("--gsroot", nargs="+")
+    parser.add_argument("--gs", type=int, default=None,
+            help="Set global ground state that will be used to determine "
+                 "difference between configurations.")
     args = parser.parse_args()
 
     sf_states_attrs = ("state", "root", "mult", "dE_global_eV")
@@ -472,12 +474,16 @@ if __name__ == "__main__":
     fn_base_fmt = "{}.mult{}"
 
     sf_states, trans_dict = parse_rassi(text)
-
-    print_table_by_attr(sf_states, sf_states_attrs)
+    if args.gs:
+        ground_state = [sfs for sfs in sf_states
+                        if sfs.state == args.gs][0]
+    else:
+        ground_state = None
 
     grouped_by_mult = group_sf_states_by(sf_states, "mult")
     for mult in grouped_by_mult:
-        by_mult = handle_rassi(grouped_by_mult[mult], trans_dict)
+        by_mult = grouped_by_mult[mult]
+        handle_rassi(grouped_by_mult[mult], trans_dict, ground_state)
         try:
             set_images(by_mult, image_dict)
             [set_single_mos(sfs) for sfs in by_mult]
@@ -486,9 +492,13 @@ if __name__ == "__main__":
             jobiph_strings = ["JOB{:0>3}".format(j) for j in jobiphs]
             logging.warning("Couldn't find MO images for "
                             "states {}".format(jobiph_strings))
-        print_table_by_attr(by_mult, by_mult_attrs)
         fn_base_mult = fn_base_fmt.format(fn_base, mult)
         if args.html:
             make_html(by_mult, fn_base_mult)
         if args.docx:
             make_docx(by_mult, docx_attrs, fn_base_mult)
+
+    print_table_by_attr(sf_states, sf_states_attrs)
+    for mult in grouped_by_mult:
+        by_mult = grouped_by_mult[mult]
+        print_table_by_attr(by_mult, by_mult_attrs)
