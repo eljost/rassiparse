@@ -13,6 +13,7 @@ import sys
 from docx import Document
 from jinja2 import Environment, FileSystemLoader
 import numpy as np
+import simplejson as json
 from tabulate import tabulate
 
 import rex
@@ -331,7 +332,7 @@ def set_mo_transitions(sf_states, trans_dict, gs_conf):
                          "weight {:.1%}".format(conf, weight)
             )
             mo_pairs = conf_diff(gs_conf, conf)
-            cd = ConfDiff(mo_pairs, weight)
+            cd = ConfDiff(conf, mo_pairs, weight)
             sfs.add_confdiff(cd)
 
 
@@ -379,36 +380,6 @@ def print_table_by_attr(objects, attrs, floatfmt=".4f"):
                    tablefmt="fancy_grid", floatfmt=floatfmt))
 
 
-def load_mo_images(path):
-    png_fns = [png for png in os.listdir(path)
-               if png.endswith(".png")]
-    # Filter for MO imgs with matching names
-    mo_re = "mo_(\d+)(?:\.job)?(\d+)?\.png"
-    img_dict = dict()
-    for png in png_fns:
-        mobj = re.match(mo_re, png)
-        if mobj:
-            mo = int(mobj.groups()[0])
-            job = mobj.groups()[1]
-            # We expect a rassi with only one jobiph
-            if not job:
-                job = 1
-            else:
-                job = int(job)
-            img_dict.setdefault(job, list()).append((mo, png))
-
-    for job in img_dict:
-        img_dict[job] = sorted(img_dict[job], key=lambda tpl: tpl[0])
-
-    return img_dict
-
-
-def set_images(sf_states, image_dict):
-    for sfs in sf_states:
-        images_for_jobiph = image_dict[sfs.jobiph]
-        sfs.set_images(images_for_jobiph)
-
-
 def handle_rassi(sf_states, trans_dict, ground_state):
     if not ground_state:
         ground_state = sorted(sf_states, key=lambda sfs: sfs.energy)[0]
@@ -441,6 +412,53 @@ def handle_rassi(sf_states, trans_dict, ground_state):
     [setattr(sfs, "state_rel", i) for i, sfs in enumerate(sf_states)]
 
 
+def load_mo_images(path):
+    png_fns = [png for png in os.listdir(path)
+               if png.endswith(".png")]
+    # Filter for MO imgs with matching names
+    mo_re = "mo_(\d+)(?:\.job)?(\d+)?\.png"
+    img_dict = dict()
+    for png in png_fns:
+        mobj = re.match(mo_re, png)
+        if mobj:
+            mo = int(mobj.groups()[0])
+            job = mobj.groups()[1]
+            # We expect a rassi with only one jobiph
+            if not job:
+                job = 1
+            else:
+                job = int(job)
+            img_dict.setdefault(job, list()).append((mo, png))
+
+    for job in img_dict:
+        img_dict[job] = sorted(img_dict[job], key=lambda tpl: tpl[0])
+
+    return img_dict
+
+
+def set_mo_images(sf_states, image_dict):
+    for sfs in sf_states:
+        images = image_dict[sfs.jobiph]
+        sfs.set_mo_images(images)
+
+
+def load_mo_names(fn_base):
+    json_fn = fn_base + ".json"
+    try:
+        with open(json_fn) as handle:
+            mo_names = json.load(handle)
+    except FileNotFoundError:
+        logging.warning("Couldn't find {}.".format(json_fn))
+        mo_names = dict()
+    return mo_names
+
+
+def set_mo_names(sf_states, mo_names_dict):
+    for sfs in sf_states:
+        names = mo_names_dict[str(sfs.jobiph)]
+        sfs.set_mo_names(names)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
                         description="Parse a &rassi-output from MOLCAS.")
@@ -464,14 +482,14 @@ if __name__ == "__main__":
                   "confdiffs", "weights"
     )
 
-
-    # Try to load the MO images
-    image_dict = load_mo_images(".")
-
     with open(args.fn) as handle:
         text = handle.read()
     fn_base = os.path.splitext(args.fn)[0]
     fn_base_fmt = "{}.mult{}"
+
+    # Try to load the MO images
+    image_dict = load_mo_images(".")
+    mo_names_dict = load_mo_names(fn_base)
 
     sf_states, trans_dict = parse_rassi(text)
     if args.gs:
@@ -484,14 +502,21 @@ if __name__ == "__main__":
     for mult in grouped_by_mult:
         by_mult = grouped_by_mult[mult]
         handle_rassi(grouped_by_mult[mult], trans_dict, ground_state)
+
+        # Precalculate JOB00N string.
+        jobiphs = set([sfs.jobiph for sfs in by_mult])
+        jobiph_strings = ["JOB{:0>3}".format(j) for j in jobiphs]
         try:
-            set_images(by_mult, image_dict)
+            set_mo_images(by_mult, image_dict)
             [set_single_mos(sfs) for sfs in by_mult]
         except KeyError:
-            jobiphs = set([sfs.jobiph for sfs in by_mult])
-            jobiph_strings = ["JOB{:0>3}".format(j) for j in jobiphs]
             logging.warning("Couldn't find MO images for "
-                            "states {}".format(jobiph_strings))
+                            "states from {}".format(jobiph_strings))
+        try:
+            set_mo_names(by_mult, mo_names_dict)
+        except KeyError:
+            logging.warning("Couldn't find MO names for "
+                            "states from {}".format(jobiph_strings))
         fn_base_mult = fn_base_fmt.format(fn_base, mult)
         if args.html:
             make_html(by_mult, fn_base_mult)

@@ -81,12 +81,17 @@ class SpinFreeState(WithHeader):
         self.dE_gs_nm = self.hartree2nm / self.dE_gs
         self.osc = osc
 
-    def set_images(self, image_list):
+    def set_mo_images(self, image_list):
         mo_nums, mo_images, = zip(*[mo_tpl for mo_tpl in image_list])
         self.mo_nums = mo_nums
         self.mo_images = mo_images
         for cd in self._confdiffs:
-            cd.set_mo_nums_images(mo_nums, mo_images)
+            cd.set_mo_nums_images(self.mo_nums, self.mo_images)
+
+    def set_mo_names(self, names_list):
+        self.mo_names = names_list
+        for cd in self._confdiffs:
+            cd.set_mo_names(self.mo_names)
 
     def as_str_list(self, attrs, newlines=False):
         str_list = super(SpinFreeState, self).as_str_list(attrs)
