@@ -515,13 +515,13 @@ if __name__ == "__main__":
             logging.warning("Couldn't find MO names for "
                             "states from {}".format(jobiph_strings))
         fn_base_mult = fn_base_fmt.format(fn_base, mult)
-        if args.html:
-            make_html(by_mult, fn_base_mult)
-        if args.docx:
-            make_docx(by_mult, docx_attrs, fn_base_mult)
 
     print_table_by_attr(sf_states, sf_states_attrs)
     for mult in grouped_by_mult:
         # Hmm, this should be handled in a different way
         by_mult = sorted(grouped_by_mult[mult], key=lambda sfs: sfs.dE_gs_eV)
         print_table_by_attr(by_mult, by_mult_attrs)
+        if args.html:
+            make_html(by_mult, fn_base_mult)
+        if args.docx:
+            make_docx(by_mult, docx_attrs, fn_base_mult)
