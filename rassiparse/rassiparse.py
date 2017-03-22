@@ -103,6 +103,10 @@ def parse_state(text):
 
 
 def parse_rassi(text):
+    nr_of_irreps_re = "NR of irreps:"
+    nr_of_irreps = rex.find_ints(text, nr_of_irreps_re)
+    assert(len(nr_of_irreps) == 1)
+
     states_regex = "READCI called for(.+?)\*"
     raw_states = re.findall(states_regex, text, re.DOTALL)
     parsed_states = [parse_state(raw_state) for raw_state
