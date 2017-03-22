@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from collections import namedtuple, OrderedDict
+from collections import namedtuple
 import logging
 import os
 import re
@@ -102,10 +102,55 @@ def parse_state(text):
     return (state, jobiph, root, sym, mult, confs)
 
 
+def parse_subspaces(text, irreps):
+    # Construct regex based on number of irreps
+    ras_base_re = ("RAS{}", "(\d+)") + ("(\d+)", )*irreps
+    subspaces = (1, 2, 3)
+    subspace_dict = dict()
+    curr_ind = 0
+    irrep_inds_dict = {irrep+1: [] for irrep in range(irreps)}
+    for subspace in subspaces:
+        ras_re = "\s*".join(ras_base_re).format(subspace)
+        mobj = re.search(ras_re, text)
+        as_ints = [int(i) for i in mobj.groups()]
+        # The first item holds the sum of the following entries
+        # and right now we dont need it.
+
+        for irrep, per_irrep in enumerate(as_ints[1:], 1):
+            # In this case there are no MOs for this subspace and irrep
+            if per_irrep == 0:
+                continue
+            # When there are MOs in this subspace for this irrep
+            # keep the index in the configuration string.
+            #
+            # Irreps: 1 and 2
+            # RAS1           2       1   1
+            # RAS2           6       4   2
+            # RAS3           2       1   1
+            # Configuration: 2 2 2200 20 0 0
+            #
+            # We have two irreps and there are MOs for both irreps in every
+            # subspace. Splitting the configuration string would lead to
+            # [2, 2, 2200, 20, 0, 0]. This equals the ordering
+            # [RAS1(1), RAS1(2), RAS2(1), RAS2(2), RAS3(1), RAS3(2)]. We keep
+            # the indices that belong to a specific irrep se we can reorder
+            # the configuration string later on.
+            # The example above would lead to the following irrep_inds_dict:
+            # {1: [0, 2, 4], 2: [1, 3, 5]}. Entries 0, 2 and 4 belong to the
+            # first irrep. Entries 1, 3, 5 belong to the second irrep.
+            irrep_inds_dict[irrep].append(curr_ind)
+            curr_ind += 1
+
+    return irrep_inds_dict
+
+
 def parse_rassi(text):
     nr_of_irreps_re = "NR of irreps:"
-    nr_of_irreps = rex.find_ints(text, nr_of_irreps_re)
-    assert(len(nr_of_irreps) == 1)
+    nr_of_irreps_list = rex.find_ints(text, nr_of_irreps_re)
+    assert(len(nr_of_irreps_list) == 1)
+    irreps = nr_of_irreps_list[0]
+    irrep_inds_dict = parse_subspaces(text, irreps)
+    print(irrep_inds_dict)
 
     states_regex = "READCI called for(.+?)\*"
     raw_states = re.findall(states_regex, text, re.DOTALL)
@@ -485,6 +530,7 @@ if __name__ == "__main__":
 
     with open(args.fn) as handle:
         text = handle.read()
+
     fn_base = os.path.splitext(args.fn)[0]
     fn_base_fmt = "{}.mult{}"
 
