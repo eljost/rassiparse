@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 import logging
 import os
 import re
@@ -72,12 +72,13 @@ def make_html(sf_states, fn_base):
     with open(single_fn, "w") as handle:
         handle.write(single_rendered)
 
+
 def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i+n]
 
 
-def parse_state(text):
+def parse_state(text, irrep_inds_dict):
     state_re = "state\s*(\d+)"
     jobiph_re = "JobIph nr.\s*(\d+)"
     root_re = "It is root nr.\s*(\d+)"
@@ -98,17 +99,35 @@ def parse_state(text):
     confs = [[cv(cf)
              for cv, cf
              in zip(conf_conv, conf)] for conf in confs_raw]
+    for conf in confs:
+        old_conf_string = conf[2]
+        old_conf_list = old_conf_string.split()
+        new_conf_list = list()
+        for irrep, inds in irrep_inds_dict.items():
+            new_conf_list.append("".join([old_conf_list[ind]
+                                 for ind in inds])
+            )
+        new_conf_string = " ".join(new_conf_list)
+        conf[2] = new_conf_string
+        logging.debug("Reordered configuration {} to {}.".format(
+                      old_conf_string, new_conf_string)
+        )
 
     return (state, jobiph, root, sym, mult, confs)
 
 
 def parse_subspaces(text, irreps):
+    # When there is no symmetry (only 1 irrep) we have only
+    # one section in the configuration string, even if all
+    # subspaces (RAS1-RAS3) are present.
+    if irreps == 1:
+        return {1: [0]}
+
     # Construct regex based on number of irreps
     ras_base_re = ("RAS{}", "(\d+)") + ("(\d+)", )*irreps
     subspaces = (1, 2, 3)
-    subspace_dict = dict()
     curr_ind = 0
-    irrep_inds_dict = {irrep+1: [] for irrep in range(irreps)}
+    irrep_inds_dict = OrderedDict()
     for subspace in subspaces:
         ras_re = "\s*".join(ras_base_re).format(subspace)
         mobj = re.search(ras_re, text)
@@ -138,7 +157,7 @@ def parse_subspaces(text, irreps):
             # The example above would lead to the following irrep_inds_dict:
             # {1: [0, 2, 4], 2: [1, 3, 5]}. Entries 0, 2 and 4 belong to the
             # first irrep. Entries 1, 3, 5 belong to the second irrep.
-            irrep_inds_dict[irrep].append(curr_ind)
+            irrep_inds_dict.setdefault(irrep, list()).append(curr_ind)
             curr_ind += 1
 
     return irrep_inds_dict
@@ -150,12 +169,14 @@ def parse_rassi(text):
     assert(len(nr_of_irreps_list) == 1)
     irreps = nr_of_irreps_list[0]
     irrep_inds_dict = parse_subspaces(text, irreps)
-    print(irrep_inds_dict)
+    logging.debug("Indices per irrep in the configuration "
+                  "string: {}".format(irrep_inds_dict)
+    )
 
     states_regex = "READCI called for(.+?)\*"
     raw_states = re.findall(states_regex, text, re.DOTALL)
-    parsed_states = [parse_state(raw_state) for raw_state
-                     in raw_states]
+    parsed_states = [parse_state(raw_state, irrep_inds_dict)
+                     for raw_state in raw_states]
     # Only keep unique states
     unique_state_ids = list()
     states = list()
