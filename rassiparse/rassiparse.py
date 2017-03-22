@@ -78,7 +78,7 @@ def chunks(lst, n):
         yield lst[i:i+n]
 
 
-def parse_state(text, irrep_inds_dict):
+def parse_state(text, irrep_inds):
     state_re = "state\s*(\d+)"
     jobiph_re = "JobIph nr.\s*(\d+)"
     root_re = "It is root nr.\s*(\d+)"
@@ -103,7 +103,7 @@ def parse_state(text, irrep_inds_dict):
         old_conf_string = conf[2]
         old_conf_list = old_conf_string.split()
         new_conf_list = list()
-        for irrep, inds in irrep_inds_dict.items():
+        for irrep, inds in enumerate(irrep_inds, 1):
             new_conf_list.append("".join([old_conf_list[ind]
                                  for ind in inds])
             )
@@ -121,20 +121,23 @@ def parse_subspaces(text, irreps):
     # one section in the configuration string, even if all
     # subspaces (RAS1-RAS3) are present.
     if irreps == 1:
-        return {1: [0]}
+        return [[0]]
 
     # Construct regex based on number of irreps
     ras_base_re = ("RAS{}", "(\d+)") + ("(\d+)", )*irreps
     subspaces = (1, 2, 3)
     curr_ind = 0
-    irrep_inds_dict = OrderedDict()
+    # Initialize a nested list
+    irrep_inds = list()
+    for irrep in range(irreps):
+        irrep_inds.append([])
+
     for subspace in subspaces:
         ras_re = "\s*".join(ras_base_re).format(subspace)
         mobj = re.search(ras_re, text)
         as_ints = [int(i) for i in mobj.groups()]
         # The first item holds the sum of the following entries
         # and right now we dont need it.
-
         for irrep, per_irrep in enumerate(as_ints[1:], 1):
             # In this case there are no MOs for this subspace and irrep
             if per_irrep == 0:
@@ -157,10 +160,10 @@ def parse_subspaces(text, irreps):
             # The example above would lead to the following irrep_inds_dict:
             # {1: [0, 2, 4], 2: [1, 3, 5]}. Entries 0, 2 and 4 belong to the
             # first irrep. Entries 1, 3, 5 belong to the second irrep.
-            irrep_inds_dict.setdefault(irrep, list()).append(curr_ind)
+            irrep_inds[irrep-1].append(curr_ind)
             curr_ind += 1
 
-    return irrep_inds_dict
+    return irrep_inds
 
 
 def parse_rassi(text):
@@ -168,14 +171,14 @@ def parse_rassi(text):
     nr_of_irreps_list = rex.find_ints(text, nr_of_irreps_re)
     assert(len(nr_of_irreps_list) == 1)
     irreps = nr_of_irreps_list[0]
-    irrep_inds_dict = parse_subspaces(text, irreps)
+    irrep_inds = parse_subspaces(text, irreps)
     logging.debug("Indices per irrep in the configuration "
-                  "string: {}".format(irrep_inds_dict)
+                  "string: {}".format(irrep_inds)
     )
 
     states_regex = "READCI called for(.+?)\*"
     raw_states = re.findall(states_regex, text, re.DOTALL)
-    parsed_states = [parse_state(raw_state, irrep_inds_dict)
+    parsed_states = [parse_state(raw_state, irrep_inds)
                      for raw_state in raw_states]
     # Only keep unique states
     unique_state_ids = list()
