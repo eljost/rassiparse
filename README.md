@@ -7,3 +7,9 @@ rassiparse uses python3 and the following libraries:
     numpy
     simplejson
     tabulate
+
+If you want to run the tests then
+
+    pytest
+
+is required.
