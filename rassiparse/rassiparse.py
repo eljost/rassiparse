@@ -532,7 +532,7 @@ def set_mo_names(sf_states, mo_names_dict):
         sfs.set_mo_names(names)
 
 
-if __name__ == "__main__":
+def parse_args(args):
     parser = argparse.ArgumentParser(
                         description="Parse a &rassi-output from MOLCAS.")
     parser.add_argument("fn", help="Filename of the RASSI-output.")
@@ -547,7 +547,12 @@ if __name__ == "__main__":
             help="Printing of additional information.")
     parser.add_argument("--debug", action="store_true",
             help="Printing of even more information.")
-    args = parser.parse_args()
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args(sys.argv[1:])
 
     sf_states_attrs = ("state", "root", "mult", "dE_global_eV")
     by_mult_attrs = ("state_rel", "state", "root", "mult", "sym",
