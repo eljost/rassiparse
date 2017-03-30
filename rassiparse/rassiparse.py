@@ -192,10 +192,20 @@ def parse_rassi(text):
     logging.info("Found {} states.".format(len(states)))
 
     lines = text.split("\n")
-    # Get dipole transition strengths
+
+    # Get dipole transition strengths but only use the spin-free
+    # section.
+    sf_trans_re = "Dipole transition strengths:(.+?)" + "-"*20 + "\n--"
+    sf_trans_mobj = re.search(sf_trans_re, text, re.DOTALL)
+    sf_trans_lines = sf_trans_mobj.groups()[0].split("\n")
     trans_tpl = (int, int, float, float, float, float, float)
     trans_re, trans_conv = rex.join_re(trans_tpl)
-    trans = rex.match_lines(lines, trans_re, trans_conv)
+    trans = rex.match_lines(sf_trans_lines, trans_re, trans_conv)
+    from_to_set = set(tuple(t[:2]) for t in trans)
+    # Assure that we have every transition only once, e.g. we didn't
+    # accidently parsed also SO states.
+    assert(len(trans) == len(from_to_set))
+
     # Create dictionary for easy lookup holding the
     # oscillator strengths with 'from,to' as keys
     trans_dict = dict()
