@@ -542,7 +542,8 @@ def parse_args(args):
             help="Export data to a .html-file.")
     parser.add_argument("--gs", type=int, default=None,
             help="Set global ground state that will be used to determine "
-                 "difference between configurations.")
+                 "differences between configurations. Expects a RASSI "
+                 "state (1..number of states).")
     parser.add_argument("--info", action="store_true",
             help="Printing of additional information.")
     parser.add_argument("--debug", action="store_true",
@@ -603,10 +604,10 @@ if __name__ == "__main__":
         except KeyError:
             logging.warning("Couldn't find MO names for "
                             "states from {}".format(jobiph_strings))
-        fn_base_mult = fn_base_fmt.format(fn_base, mult)
 
     print_table_by_attr(sf_states, sf_states_attrs)
     for mult in grouped_by_mult:
+        fn_base_mult = fn_base_fmt.format(fn_base, mult)
         # Hmm, this should be handled in a different way
         by_mult = sorted(grouped_by_mult[mult], key=lambda sfs: sfs.dE_gs_eV)
         print_table_by_attr(by_mult, by_mult_attrs)
