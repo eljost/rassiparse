@@ -555,7 +555,7 @@ def parse_args(args):
 if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
 
-    sf_states_attrs = ("state", "root", "mult", "dE_global_eV")
+    sf_states_attrs = ("state", "root", "mult", "sym", "dE_global_eV")
     by_mult_attrs = ("state_rel", "state", "root", "mult", "sym",
                      "dE_gs_eV", "dE_gs_nm", "osc", "confdiffsw"
     )
@@ -605,7 +605,8 @@ if __name__ == "__main__":
             logging.warning("Couldn't find MO names for "
                             "states from {}".format(jobiph_strings))
 
-    print_table_by_attr(sf_states, sf_states_attrs)
+    sf_states_sorted = sorted(sf_states, key=lambda sfs: sfs.dE_global_eV)
+    print_table_by_attr(sf_states_sorted, sf_states_attrs)
     for mult in grouped_by_mult:
         fn_base_mult = fn_base_fmt.format(fn_base, mult)
         # Hmm, this should be handled in a different way
