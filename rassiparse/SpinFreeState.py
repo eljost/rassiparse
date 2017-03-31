@@ -12,8 +12,7 @@ class SpinFreeState(WithHeader):
         "mult" : ("2S+1", "{}"),
         "energy": ("E / au", "{:.6f}"),
         "confdiffsw": ("Transitions", "{}"),
-        "confdiffs": ("Transitions", "{}"),
-        #"weights" : ("%", "{:.0%}"),
+        "confdiff_strs": ("Transitions", "{}"),
         "weights" : ("%", "{}"),
         "dE_global": ("ΔE / au", "{:.2f}"),
         "dE_global_eV": ("ΔE / eV", "{:.2f}"),
@@ -52,19 +51,26 @@ class SpinFreeState(WithHeader):
         self._confdiffs = list()
 
     def _cds_sorted(self):
-        return sorted([cd for cd in self._confdiffs], key=lambda cd: -cd.weight)
+        return sorted([cd for cd in self._confdiffs],
+                      key=lambda cd: -cd.weight)
 
     @property
     def confdiffsw(self):
         return ", ".join([cd.str_with_weight() for cd in self._cds_sorted()])
 
     @property
-    def confdiffs(self):
+    def confdiff_strs(self):
         return ", ".join([str(cd) for cd in self._cds_sorted()])
 
     @property
+    def confdiffs(self):
+        return self._confdiffs
+
+    @property
     def confdiff_images(self):
-        return [(cd.weight, cd.mo_images) for cd in self._cds_sorted()]
+        return [(cd.weight, cd.mo_images, cd)
+                for cd in self._cds_sorted()
+                if (cd.mo_pairs is not None) and (cd.mo_images is not None)]
 
     def add_confdiff(self, confdiff):
         self._confdiffs.append(confdiff)

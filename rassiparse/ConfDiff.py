@@ -13,6 +13,7 @@ class ConfDiff:
 
         self.mo_nums = None
         self.mo_names = None
+        self.mo_images = None
 
     def set_mo_nums_images(self, mo_num_list, mo_images):
         if not self.mo_pairs:

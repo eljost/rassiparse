@@ -387,7 +387,7 @@ def conf_diff(c1, c2):
             # Don't return anything because this state can't be described
             # completly without considering all MO transitions.
             logging.warning("Ambiguous transitions. Can't handle this.")
-            return []
+            return list()
 
     return mo_pairs
 
@@ -562,7 +562,7 @@ if __name__ == "__main__":
                      "dE_gs_eV", "dE_gs_nm", "osc", "confdiffsw"
     )
     docx_attrs = ("state_rel", "sym", "dE_gs_nm", "dE_gs_eV", "osc",
-                  "confdiffs", "weights"
+                  "confdiff_strs", "weights"
     )
 
     if args.info:

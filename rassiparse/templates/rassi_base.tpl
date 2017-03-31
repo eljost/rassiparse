@@ -32,6 +32,9 @@
             h3 {
                 margin: 0;
             }
+            .weight_conf {
+                margin-left: 2%;
+            }
         </style>
     </head>
     <body>

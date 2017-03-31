@@ -3,7 +3,8 @@
 {% for cdi in sfs.confdiff_images %}
 <div>
     <figure>
-        <figcaption>{{ "%.1f" | format(cdi[0]*100) }}%</figcaption>
+        <figcaption>{{ "%.1f" | format(cdi[0]*100) }}%<br />
+        {{ cdi[2].conf }}</figcaption>
         {% for from_mo, to_mo in cdi[1] %}
         <img class="mo" src="{{ from_mo }}" />
         <svg width="7em" height="4em">
@@ -21,4 +22,16 @@
     </figure>
 </div>
 {% endfor %}
+
+{# This handles all significant configurations for which no mo_pairs could be
+determined or when images are missing. #}
+<div class="weight_conf">
+{% for cd in sfs.confdiffs %}
+    {% if (cd.mo_pairs == None) or (cd.mo_images == None) %}
+        <figcaption>{{ "%.1f" | format(cd.weight*100) }}%<br />
+        {{ cd.conf }}</figcaption>
+        <br />
+    {% endif %}
+{% endfor %}
+</div>
 {% endblock %}
