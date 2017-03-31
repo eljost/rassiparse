@@ -20,6 +20,7 @@
         <br />
         {% endfor %}
     </figure>
+    <br />
 </div>
 {% endfor %}
 
