@@ -16,3 +16,10 @@ docx = state_rel dE_gs_nm dE_gs_eV osc confdiff_strs weights
 all_states = state mult dE_global_eV
 by_mult = state_rel state dE_gs_eV dE_gs_nm osc confdiffoccw_strs
 docx = state_rel dE_gs_nm dE_gs_eV osc confdiffocc_strs weights
+
+[nosym_occ_ev]
+# Use occupation strings like ..(π₁)²(π₂)²(π₃)²(π₄)²(d₁)ᵘ.. instead of
+# differences between configurations for .docx-export.
+all_states = state mult dE_global_eV
+by_mult = state_rel state dE_gs_eV dE_gs_nm osc confdiffoccw_strs
+docx = state_rel dE_gs_eV confdiffocc_strs weights
