@@ -13,6 +13,8 @@ class SpinFreeState(WithHeader):
         "energy": ("E / au", "{:.6f}"),
         "confdiffsw": ("Transitions", "{}"),
         "confdiff_strs": ("Transitions", "{}"),
+        "confdiffocc_strs": ("Configuration", "{}"),
+        "confdiffoccw_strs": ("Configuration", "{}"),
         "weights" : ("%", "{}"),
         "dE_global": ("ΔE / au", "{:.2f}"),
         "dE_global_eV": ("ΔE / eV", "{:.2f}"),
@@ -63,6 +65,16 @@ class SpinFreeState(WithHeader):
         return ", ".join([str(cd) for cd in self._cds_sorted()])
 
     @property
+    def confdiffoccw_strs(self):
+        return ", ".join(["{} ({:.1%})".format(cd.conf_occ, cd.weight)
+                          for cd in self.confdiffs])
+
+    @property
+    def confdiffocc_strs(self):
+        return ", ".join(["{}".format(cd.conf_occ)
+                          for cd in self.confdiffs])
+
+    @property
     def confdiffs(self):
         return self._confdiffs
 
@@ -81,7 +93,8 @@ class SpinFreeState(WithHeader):
 
     @property
     def weights(self):
-        return ", ".join(["{:.0%}".format(cd.weight) for cd in self._confdiffs])
+        return ", ".join(["{:.0f}".format(cd.weight*100)
+                          for cd in self._confdiffs])
 
     def set_ground_state(self, ground_state, osc):
         self.ground_state = ground_state
@@ -107,7 +120,7 @@ class SpinFreeState(WithHeader):
         if not newlines:
             return str_list
         if "weights" in attrs:
-            weights_str = "\n".join(["{:.0%}".format(cd.weight)
+            weights_str = "\n".join(["{:.0f}".format(cd.weight*100)
                                      for cd in self._confdiffs])
             weight_index = attrs.index("weights")
             str_list[weight_index] = weights_str

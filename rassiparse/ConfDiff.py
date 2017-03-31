@@ -2,6 +2,12 @@
 # -*- coding: utf-8 -*-
 
 class ConfDiff:
+    superscripts = {
+        "2": "²",
+        "0": "⁰",
+        "d": "ᵈ",
+        "u": "ᵘ"
+    }
     
     def __init__(self, conf, mo_pairs, weight):
 
@@ -12,8 +18,19 @@ class ConfDiff:
         self.weight = weight
 
         self.mo_nums = None
+        self.all_mo_names = None
         self.mo_names = None
         self.mo_images = None
+
+    @property
+    def conf_occ(self):
+        if not self.all_mo_names:
+            return self.conf
+
+        cf = self.conf.replace(" ", "")
+        assert(len(cf) == len(self.all_mo_names))
+        return "".join(["({}){}".format(mon, self.superscripts[occ])
+                        for mon, occ in zip(self.all_mo_names, cf)])
 
     def set_mo_nums_images(self, mo_num_list, mo_images):
         if not self.mo_pairs:
@@ -29,6 +46,7 @@ class ConfDiff:
             )
 
     def set_mo_names(self, mo_names):
+        self.all_mo_names = mo_names
         if not self.mo_pairs:
             return
         self.mo_names = [(mo_names[from_mo], mo_names[to_mo])

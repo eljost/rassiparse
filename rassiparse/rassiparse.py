@@ -3,6 +3,7 @@
 
 import argparse
 from collections import namedtuple, OrderedDict
+import configparser
 import logging
 import os
 import re
@@ -20,14 +21,16 @@ from ConfDiff import ConfDiff
 
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
+CONFIG = configparser.ConfigParser()
+# Try to load a customized config from THIS_DIR
+if not CONFIG.read(os.path.join(THIS_DIR, "config.ini")):
+    logging.warning("Used fallback config 'templates/config.tpl'")
+    CONFIG.read(os.path.join(THIS_DIR, "templates/config.tpl"))
 
 
 def make_docx(sf_states, attrs, fn_base):
     """Export the supplied excited states into a .docx-document."""
     docx_fn = fn_base + ".docx"
-    # The table header
-    trans_fmt = "{} → {}"
-    weight_fmt = "{:.0%}"
 
     sfs_attrs = [sfs.as_str_list(attrs, newlines=True)
                  for sfs in sf_states]
@@ -546,6 +549,8 @@ def parse_args(args):
                  "RASSI state (1..number of states). If --gs=0 the ground "
                  "state configuration will be determined from the "
                  "configuration with the highest weight in the ground state.")
+    parser.add_argument("--attrs", default="default",
+            help="Load a different set of attributes from the config file.")
     parser.add_argument("--info", action="store_true",
             help="Print more information.")
     parser.add_argument("--debug", action="store_true",
@@ -554,16 +559,18 @@ def parse_args(args):
     return parser.parse_args()
 
 
+def load_attrs(section):
+    sf_states_attrs = CONFIG[section]["all_states"].strip().split()
+    by_mult_attrs = CONFIG[section]["by_mult"].strip().split()
+    docx_attrs = CONFIG[section]["docx"].strip().split()
+
+    return sf_states_attrs, by_mult_attrs, docx_attrs
+
+
 if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
 
-    sf_states_attrs = ("state", "root", "mult", "sym", "dE_global_eV")
-    by_mult_attrs = ("state_rel", "state", "root", "mult", "sym",
-                     "dE_gs_eV", "dE_gs_nm", "osc", "confdiffsw"
-    )
-    docx_attrs = ("state_rel", "sym", "dE_gs_nm", "dE_gs_eV", "osc",
-                  "confdiff_strs", "weights"
-    )
+    sf_states_attrs, by_mult_attrs, docx_attrs = load_attrs(args.attrs)
 
     if args.info:
         logging.basicConfig(level=logging.INFO)
