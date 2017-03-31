@@ -537,17 +537,19 @@ def parse_args(args):
                         description="Parse a &rassi-output from MOLCAS.")
     parser.add_argument("fn", help="Filename of the RASSI-output.")
     parser.add_argument("--docx", action="store_true",
-            help="Export data to a .docx-table.")
+            help="Export data to DOCX.")
     parser.add_argument("--html", action="store_true",
-            help="Export data to a .html-file.")
+            help="Export data to HTML.")
     parser.add_argument("--gs", type=int, default=None,
-            help="Set global ground state that will be used to determine "
-                 "differences between configurations. Expects a RASSI "
-                 "state (1..number of states).")
+            help="Set a global ground state configuration that will be used "
+                 "to determine differences between configurations. Expects a "
+                 "RASSI state (1..number of states). If --gs=0 the ground "
+                 "state configuration will be determined from the "
+                 "configuration with the highest weight in the ground state.")
     parser.add_argument("--info", action="store_true",
-            help="Printing of additional information.")
+            help="Print more information.")
     parser.add_argument("--debug", action="store_true",
-            help="Printing of even more information.")
+            help="Print even more information.")
 
     return parser.parse_args()
 
@@ -605,11 +607,13 @@ if __name__ == "__main__":
             logging.warning("Couldn't find MO names for "
                             "states from {}".format(jobiph_strings))
 
+    # Sort by energy difference to the global energy minimum
     sf_states_sorted = sorted(sf_states, key=lambda sfs: sfs.dE_global_eV)
     print_table_by_attr(sf_states_sorted, sf_states_attrs)
     for mult in grouped_by_mult:
         fn_base_mult = fn_base_fmt.format(fn_base, mult)
         # Hmm, this should be handled in a different way
+        # Sort by energy difference to the ground state of this multiplicity
         by_mult = sorted(grouped_by_mult[mult], key=lambda sfs: sfs.dE_gs_eV)
         print_table_by_attr(by_mult, by_mult_attrs)
         if args.html:
