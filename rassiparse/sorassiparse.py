@@ -16,8 +16,6 @@ import numpy as np
 
 from rassiparse import significant_confs, conf_diff, parse_rassi#, load_json
 from SpinOrbitState import SpinOrbitState
-#from SFState import SFState
-#from SOState import SOState
 
 
 TEX = False
@@ -36,48 +34,7 @@ def normalize_energies(energies):
 
 
 def parse_sorassi(text):
-    # Spin-free section
-    sf_states, trans_dict = parse_rassi(text)
-    """
-    sf_state_re = ("state\s*(\d+)"
-                   ".+?JobIph nr\.\s*(\d+)"
-                   ".+?symmetry\s*=\s*(\d+)"
-                   ".+?Spin multiplic=\s*(\d+)")
-    sf_states_lists = re.findall(sf_state_re, text, re.DOTALL)
-    conf_block_re = "Coef\s*Weight\s*(.+?)\*\*"
-    conf_blocks = [conf_block.strip() for conf_block
-                   in re.findall(conf_block_re, text, re.DOTALL)]
-    conv_confs = list()
-    for cb in conf_blocks:
-        cut_conf = [re.sub(".+\)", "", line) for line in cb.split("\n")]
-        conv_conf = list()
-        for cc in cut_conf:
-            *occ, coef, weight = cc.split()
-            occ = "".join(occ)
-            coef = float(coef)
-            weight = float(weight)
-            conv_conf.append((occ, coef, weight))
-        conv_confs.append(conv_conf)
-    assert(len(sf_states_lists) == len(conv_confs))
-    # Transform sf_states into a dict
-    # State: (symmetry, multiplicity)
-    sf_states_dict = {int(id): (int(jobiph), int(sym), int(mult), confs)
-                      for (id, jobiph, sym, mult), confs
-                      in zip(sf_states_lists, conv_confs)}
-
-    sf_energies_re = "SF State.+?\n(.+?)\+\+"
-    sf_energies_lists = get_block_lines(text, sf_energies_re)
-    sf_states, sf_energies, *_ = zip(*sf_energies_lists)
-    sf_energies = normalize_energies(sf_energies)
-    sf_states = np.array(sf_states, dtype=np.int)
-    sf_states = list()
-    for key in sf_states_dict:
-        jobiph, sym, mult, confs = sf_states_dict[key]
-        sf_state = SFState(key, sf_energies[key-1], jobiph, sym, mult, confs)
-        sf_states.append(sf_state)
-    """
-
-    # Spin-orbit section
+    # Only consinder the spin-orbit section
     so_section_re = "Spin-orbit section(.+)"
     so_section = re.search(so_section_re, text, re.DOTALL).groups()[0]
     # Coupling part
@@ -122,7 +79,7 @@ def parse_sorassi(text):
         so_state = SpinOrbitState(state, E_global, weight_line, osc)
         so_states.append(so_state)
 
-    return sf_states, so_states, couplings
+    return so_states, couplings
 
 
 def split_states(states):
@@ -292,7 +249,9 @@ def run():
     fn = args.fn
     with open(fn) as handle:
         text = handle.read()
-    sf_states, so_states, couplings = parse_sorassi(text)
+    # Spin-free section
+    sf_states, trans_dict = parse_rassi(text)
+    so_states, couplings = parse_sorassi(text)
     # Only keep couplings above or equal to a threshold
     couplings = [c for c in couplings if c[2] >= args.cthresh]
     if args.cbelow:
