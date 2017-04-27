@@ -9,7 +9,9 @@ class SpinOrbitState:
         self.E_global = E_global
         self.osc = osc
 
-        self.dE_global_eV = self.E_global * 27.211386
+        self.dE_global = self.E_global
+        self.dE_global_eV = self.dE_global * 27.211386
+        self.dE_global_nm = 45.5640 / self.dE_global
         self.sf_states_arr = np.array(weight_line).reshape((5, 3))
         self.spin = np.rint(np.sum(self.sf_states_arr[:, 1] *
                                    self.sf_states_arr[:, 2]))

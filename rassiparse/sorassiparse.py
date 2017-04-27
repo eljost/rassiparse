@@ -13,7 +13,9 @@ from matplotlib import rc
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
+from tabulate import tabulate
 
+from Coupling import conv_coupling_line, Coupling
 from rassiparse import (significant_confs, conf_diff,
                         parse_rassi, handle_spin_free_states,
                         load_mo_names)
@@ -41,9 +43,8 @@ def parse_sorassi(text):
     so_section = re.search(so_section_re, text, re.DOTALL).groups()[0]
     # Coupling part
     coupling_re = "Real part\s*Imag part\s*Absolute(.+?)--"
-    coupling_lists = get_block_lines(so_section, coupling_re)
-    couplings = [(int(c[0]), int(c[3]), float(c[8]))
-                  for c in coupling_lists]
+    coupling_lines = get_block_lines(so_section, coupling_re)
+    couplings = [Coupling(*conv_coupling_line(cl)) for cl in coupling_lines]
     # Weights of original states in so-states
     weight_re = "Spin-free states, spin, and weights[\s\-]+(.+?)--"
     weight_lists = get_block_lines(so_section, weight_re)
@@ -165,17 +166,21 @@ def plot_states(sf_states, so_states, couplings=None, usetex=False):
     ax.axhline(y=3.06, color="k", linestyle="--")
 
     # Add couplings
-    for from_id, to_id, abs_cpl in couplings:
-        from_x = 1 if from_id-1 in so_sing_inds else 2
-        to_x = 1 if to_id-1 in so_sing_inds else 2
+    for coupling in couplings:
+        from_state = coupling.i1
+        to_state = coupling.i2
+        abs_ = coupling.abs
+
+        from_x = 1 if from_state-1 in so_sing_inds else 2
+        to_x = 1 if to_state-1 in so_sing_inds else 2
         try:
-            from_y = so_ens[from_id-1]
-            to_y = so_ens[to_id-1]
+            from_y = so_ens[from_state-1]
+            to_y = so_ens[to_state-1]
             ax.add_line(Line2D((from_x, to_x),
                                (from_y, to_y)))
             x_text = -0.1 + from_x + (to_x - from_x) / 2
             y_text = from_y + (to_y - from_y) / 2
-            cpl_str = cpl_base.format(from_id, to_id, abs_cpl)
+            cpl_str = cpl_base.format(from_state, to_state, abs_)
             ax.text(x_text, y_text, cpl_str)
         except IndexError:
             logging.warning("IndexError")
@@ -249,6 +254,9 @@ def parse_args(args):
                         "when many couplings are present.")
     parser.add_argument("--tex", action="store_true", default=False,
                         help="Use tex to render text.")
+    parser.add_argument("--plot", action="store_true", default=False,
+                        help="Plot the states using matplotlib.")
+    parser.add_argument("--html", action="store_true", default=False)
 
     return parser.parse_args(args)
 
@@ -271,7 +279,7 @@ def run():
     so_states, couplings = parse_sorassi(text)
     set_sf_states(so_states, sf_states)
     # Only keep couplings above or equal to a threshold
-    couplings = [c for c in couplings if c[2] >= args.cthresh]
+    couplings = [c for c in couplings if c.abs >= args.cthresh]
     if args.cbelow:
         so_states_below = [sos.sostate for sos in so_states
                            if sos.dE_global_eV <= args.cbelow]
@@ -281,12 +289,20 @@ def run():
         )
 
         couplings = [c for c in couplings
-                     if (c[0] in so_states_below) and
-                     (c[1] in so_states_below)]
+                     if (c.i1 in so_states_below) and
+                     (c.i2 in so_states_below)]
 
-    plot_states(sf_states, so_states, couplings, usetex=args.tex)
-    make_html(so_states)
+    if args.plot:
+        plot_states(sf_states, so_states, couplings, usetex=args.tex)
+    if args.html:
+        make_html(so_states)
 
+    cpl_headers = ("I1", "S1", "MS1",
+                   "I2", "S2", "MS2",
+                   "real / cm⁻¹", "img / cm⁻¹", "abs / cm⁻¹"
+    )
+
+    print(tabulate(couplings, headers=cpl_headers))
 
 if __name__ == "__main__":
     run()

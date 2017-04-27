@@ -26,9 +26,8 @@
     {% for so_state in so_states %}
         <div class="state">
             <h2>
-                {{ so_state.mult }}<sub>SO,{{ so_state.sostate }}</sub>,
-                {# {{ state.sym }} #} Sym einbauen!,
-                {# {{ "%.1f" | format(so_state.Enm) }} nm, #}
+                {{ so_state.mult }}<sub>SO{{ so_state.sostate }}</sub>,
+                {{ "%.1f" | format(so_state.dE_global_nm) }} nm,
                 {{ "%.2f" | format(so_state.dE_global_eV) }} eV,
                 f={{ "%.4f" | format(so_state.osc) }}
             </h2>
