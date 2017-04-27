@@ -456,7 +456,7 @@ def print_table_by_attr(objects, attrs, floatfmt=".4f"):
                    tablefmt="fancy_grid", floatfmt=floatfmt))
 
 
-def handle_rassi(sf_states, trans_dict, ground_state):
+def handle_rassi(sf_states, trans_dict, ground_state=None):
     if not ground_state:
         ground_state = sorted(sf_states, key=lambda sfs: sfs.energy)[0]
     # Determine ground state configuration based on state with
@@ -566,33 +566,10 @@ def load_attrs(section):
 
     return sf_states_attrs, by_mult_attrs, docx_attrs
 
-
-def run():
-    args = parse_args(sys.argv[1:])
-
-    sf_states_attrs, by_mult_attrs, docx_attrs = load_attrs(args.attrs)
-
-    if args.info:
-        logging.basicConfig(level=logging.INFO)
-    if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
-
-    with open(args.fn) as handle:
-        text = handle.read()
-
-    fn_base = os.path.splitext(args.fn)[0]
-    fn_base_fmt = "{}.mult{}"
-
+def handle_spin_free_states(sf_states, trans_dict, mo_names_dict,
+                            ground_state=None):
     # Try to load the MO images
     image_dict = load_mo_images(".")
-    mo_names_dict = load_mo_names(fn_base)
-
-    sf_states, trans_dict = parse_rassi(text)
-    if args.gs:
-        ground_state = [sfs for sfs in sf_states
-                        if sfs.state == args.gs][0]
-    else:
-        ground_state = None
 
     grouped_by_mult = group_sf_states_by(sf_states, "mult")
     for mult in grouped_by_mult:
@@ -613,7 +590,40 @@ def run():
         except KeyError:
             logging.warning("Couldn't find MO names for "
                             "states from {}".format(jobiph_strings))
+    return grouped_by_mult
 
+
+def run():
+    args = parse_args(sys.argv[1:])
+
+    sf_states_attrs, by_mult_attrs, docx_attrs = load_attrs(args.attrs)
+
+    if args.info:
+        logging.basicConfig(level=logging.INFO)
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+
+    with open(args.fn) as handle:
+        text = handle.read()
+
+    fn_base = os.path.splitext(args.fn)[0]
+    fn_base_fmt = "{}.mult{}"
+
+    mo_names_dict = load_mo_names(fn_base)
+    sf_states, trans_dict = parse_rassi(text)
+    
+    if args.gs:
+        ground_state = [sfs for sfs in sf_states
+                        if sfs.state == args.gs][0]
+    else:
+        ground_state = None
+
+    grouped_by_mult = handle_spin_free_states(sf_states,
+                                              trans_dict,
+                                              mo_names_dict,
+                                              ground_state
+    )
+                    
     # Sort by energy difference to the global energy minimum
     sf_states_sorted = sorted(sf_states, key=lambda sfs: sfs.dE_global_eV)
     print_table_by_attr(sf_states_sorted, sf_states_attrs)

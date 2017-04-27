@@ -14,7 +14,9 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
 
-from rassiparse import significant_confs, conf_diff, parse_rassi#, load_json
+from rassiparse import (significant_confs, conf_diff,
+                        parse_rassi, handle_spin_free_states,
+                        load_mo_names)
 from SpinOrbitState import SpinOrbitState
 
 
@@ -196,13 +198,13 @@ def get_ground_state_conf(sf_states):
     return sig_confs[0][0]
 
 
-def make_html(states, sf_trans_dict):
+def make_html(so_states):
     this_dir = os.path.dirname(os.path.realpath(__file__))
     j2_env = Environment(loader=FileSystemLoader(this_dir,
                                                  followlinks=True))
     tpl = j2_env.get_template("templates/sohtml.tpl")
-    rendered = tpl.render(states=states,
-                          sf_trans_dict=sf_trans_dict)
+
+    rendered = tpl.render(so_states=so_states)
     out_fn = os.path.join(
                 os.getcwd(), "sorassi" + ".html")
     with open(out_fn, "w") as handle:
@@ -229,6 +231,13 @@ def make_img_dict(sf_states, imgs, gs_conf):
     return img_dict
 
 
+def set_sf_states(so_states, sf_states):
+    for sos in so_states:
+        for sfs_state in sos.sfs_states:
+            sos.sf_states.append(sf_states[sfs_state-1])
+            assert(sos.sf_states[-1].state == sfs_state)
+
+
 def parse_args(args):
     parser = argparse.ArgumentParser("Parse SO-RASSI-calculations.")
     parser.add_argument("fn", help="SO-RASSI output to parse.")
@@ -246,12 +255,21 @@ def parse_args(args):
 
 def run():
     args = parse_args(sys.argv[1:])
-    fn = args.fn
-    with open(fn) as handle:
+
+    fn_base = os.path.splitext(args.fn)[0]
+    mo_names_dict = load_mo_names(fn_base)
+
+    with open(args.fn) as handle:
         text = handle.read()
     # Spin-free section
     sf_states, trans_dict = parse_rassi(text)
+
+    # Load images and mo_names if available and parse
+    # the spin free states
+    handle_spin_free_states(sf_states, trans_dict, mo_names_dict)
+
     so_states, couplings = parse_sorassi(text)
+    set_sf_states(so_states, sf_states)
     # Only keep couplings above or equal to a threshold
     couplings = [c for c in couplings if c[2] >= args.cthresh]
     if args.cbelow:
@@ -265,9 +283,9 @@ def run():
         couplings = [c for c in couplings
                      if (c[0] in so_states_below) and
                      (c[1] in so_states_below)]
-    gs_conf = get_ground_state_conf(sf_states)
+
     plot_states(sf_states, so_states, couplings, usetex=args.tex)
-    make_html(so_states, img_trans_dict)
+    make_html(so_states)
 
 
 if __name__ == "__main__":
