@@ -33,6 +33,8 @@
             </h2>
 
         {% for sfs, weight in so_state.sf_states %}
+            <p>{{ "%.1f" | format(weight*100) }}% Spin Free State {{ sfs.state }}
+            (Sym={{ sfs.sym }}, 2S+1={{ sfs.mult }}, JobIph={{ sfs.jobiph }}, Root={{ sfs.root }})</p>
             {% for cdi in sfs.confdiff_images %}
             <div>
                 <figure>

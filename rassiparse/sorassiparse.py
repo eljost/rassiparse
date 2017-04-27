@@ -3,7 +3,6 @@
 
 import argparse
 import logging
-logging.basicConfig(level=logging.INFO)
 import os
 import re
 import sys
@@ -245,12 +244,21 @@ def parse_args(args):
     parser.add_argument("--plot", action="store_true", default=False,
                         help="Plot the states using matplotlib.")
     parser.add_argument("--html", action="store_true", default=False)
+    parser.add_argument("--info", action="store_true",
+            help="Print more information.")
+    parser.add_argument("--debug", action="store_true",
+            help="Print even more information.")
 
     return parser.parse_args(args)
 
 
 def run():
     args = parse_args(sys.argv[1:])
+
+    if args.info:
+        logging.basicConfig(level=logging.INFO)
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     fn_base = os.path.splitext(args.fn)[0]
     mo_names_dict = load_mo_names(fn_base)
@@ -259,10 +267,15 @@ def run():
         text = handle.read()
     # Spin-free section
     sf_states, trans_dict = parse_rassi(text)
+    sf_ens = np.array([sfs.energy for sfs in sf_states])
+    sf_gs_index = np.where(sf_ens == sf_ens.min())[0][0]
+    ground_state = sf_states[sf_gs_index]
 
     # Load images and mo_names if available and parse
     # the spin free states
-    handle_spin_free_states(sf_states, trans_dict, mo_names_dict)
+    handle_spin_free_states(sf_states, trans_dict,
+                            mo_names_dict,
+                            ground_state=ground_state)
 
     so_states, couplings = parse_sorassi(text)
     [so.set_sf_states(sf_states) for so in so_states]

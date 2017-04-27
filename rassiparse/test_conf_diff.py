@@ -11,3 +11,7 @@ def test_conf_diff():
     # Ambiguous transitions
     c2 = "22200 dudu0"
     assert(set(conf_diff(c1, c2)) == set([]))
+
+    # Spinflip
+    c2 = "2222u u0000"
+    assert(set(conf_diff(c1, c2)) == set([(4, 5)]))

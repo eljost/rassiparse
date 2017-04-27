@@ -381,11 +381,14 @@ def conf_diff(c1, c2):
         logging.debug("Handling transition from "
                       "MO {} with spin {}.".format(occ_ind, occ_spin)
         )
-        virt_inds = [(virt_spin, virt_ind) for virt_spin, virt_ind in to_mos
+        virt_mos = [(virt_spin, virt_ind) for virt_spin, virt_ind in to_mos
                      if (occ_spin == virt_spin)]
-        if len(virt_inds) == 1:
-            mo_pairs.append((occ_ind, virt_inds[0][1]))
-            to_mos.remove(virt_inds[0])
+        if len(virt_mos) == 1:
+            mo_pairs.append((occ_ind, virt_mos[0][1]))
+            to_mos.remove(virt_mos[0])
+        elif (len(from_mos) == 1) and (len(to_mos) == 1):
+            logging.warning("Spin flip transition!")
+            mo_pairs.append((occ_ind, to_mos[0][1]))
         else:
             # Don't return anything because this state can't be described
             # completly without considering all MO transitions.
