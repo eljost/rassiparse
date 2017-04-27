@@ -556,7 +556,7 @@ def parse_args(args):
     parser.add_argument("--debug", action="store_true",
             help="Print even more information.")
 
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
 def load_attrs(section):
@@ -567,7 +567,7 @@ def load_attrs(section):
     return sf_states_attrs, by_mult_attrs, docx_attrs
 
 
-if __name__ == "__main__":
+def run():
     args = parse_args(sys.argv[1:])
 
     sf_states_attrs, by_mult_attrs, docx_attrs = load_attrs(args.attrs)
@@ -627,3 +627,7 @@ if __name__ == "__main__":
             make_html(by_mult, fn_base_mult)
         if args.docx:
             make_docx(by_mult, docx_attrs, fn_base_mult)
+
+
+if __name__ == "__main__":
+    run()

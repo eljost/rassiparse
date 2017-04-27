@@ -267,9 +267,6 @@ def run():
                      (c[1] in so_states_below)]
     gs_conf = get_ground_state_conf(sf_states)
     plot_states(sf_states, so_states, couplings, usetex=args.tex)
-    sys.exit()
-    active_spaces, imgs, irreps = load_json(fn)
-    img_trans_dict = make_img_dict(sf_states, imgs, gs_conf)
     make_html(so_states, img_trans_dict)
 
 
