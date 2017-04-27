@@ -56,29 +56,24 @@ def parse_sorassi(text):
     weight_array[:, 1] = normalize_energies(so_energies)
     logging.warning("Energies get normalized too early. Fixme plz :)")
     # Transition moments
-    trans_re = "Total A \(sec-1\)[\s\-]+(.+?)--"
-    trans_lists = get_block_lines(so_section, trans_re)
-    from_ids, to_ids, oscs, *_ = zip(*trans_lists)
-    oscs = [float(osc) for osc in oscs]
-    # Check out if MOLCAS left out any transitions.
-    # Only consider excitations out of the GS
-    to_ids = [int(to_id) for from_id, to_id
-              in zip(from_ids, to_ids)
-              if from_id == "1"]
-    # If we got 40 SO states we expect ids from 2..40
-    expected_ids = range(2, len(weight_lists)+1)
-    missing_ids = set(expected_ids) - set(to_ids)
-    for mid in missing_ids:
-        logging.warning("No transition for SO states 1->{} found!".format(mid))
-        # Insert f=-1 to symbolize the missing transition
-        oscs.insert(mid-2, -1)
-    # We expect len(expected_ids) oscillator strengths, because we
-    # got no transition between the ground state and itself.
-    oscs = oscs[:len(expected_ids)]
-
+    oscs_re = "Total A \(sec-1\)[\s\-]+(.+?)--"
+    osc_lists = get_block_lines(so_section, oscs_re)
+    from_states, to_states, oscs, *_ = zip(*osc_lists)
+    osc_dict = {(int(from_state), int(to_state)): float(osc)
+                for from_state, to_state, osc
+                in zip(from_states, to_states, oscs)
+    }
     so_states = list()
-    for row, osc in zip(weight_array, oscs):
+    for row in weight_array:
         state, E_global, *weight_line = row
+        state = int(state)
+        osc_tpl = (1, state)
+        try:
+            osc = osc_dict[osc_tpl]
+        except KeyError:
+            logging.warning("No oscillator strength found for "
+                            "1->{}!".format(state))
+            osc = 0.
         so_state = SpinOrbitState(state, E_global, weight_line, osc)
         so_states.append(so_state)
 
@@ -236,13 +231,6 @@ def make_img_dict(sf_states, imgs, gs_conf):
     return img_dict
 
 
-def set_sf_states(so_states, sf_states):
-    for sos in so_states:
-        for sfs_state in sos.sfs_states:
-            sos.sf_states.append(sf_states[sfs_state-1])
-            assert(sos.sf_states[-1].state == sfs_state)
-
-
 def parse_args(args):
     parser = argparse.ArgumentParser("Parse SO-RASSI-calculations.")
     parser.add_argument("fn", help="SO-RASSI output to parse.")
@@ -277,7 +265,7 @@ def run():
     handle_spin_free_states(sf_states, trans_dict, mo_names_dict)
 
     so_states, couplings = parse_sorassi(text)
-    set_sf_states(so_states, sf_states)
+    [so.set_sf_states(sf_states) for so in so_states]
     # Only keep couplings above or equal to a threshold
     couplings = [c for c in couplings if c.abs >= args.cthresh]
     if args.cbelow:

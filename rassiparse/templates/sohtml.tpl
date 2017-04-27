@@ -29,10 +29,10 @@
                 {{ so_state.mult }}<sub>SO{{ so_state.sostate }}</sub>,
                 {{ "%.1f" | format(so_state.dE_global_nm) }} nm,
                 {{ "%.2f" | format(so_state.dE_global_eV) }} eV,
-                f={{ "%.4f" | format(so_state.osc) }}
+                f={{ "%.5f" | format(so_state.osc) }}
             </h2>
 
-        {% for sfs in so_state.sf_states %}
+        {% for sfs, weight in so_state.sf_states %}
             {% for cdi in sfs.confdiff_images %}
             <div>
                 <figure>
