@@ -51,6 +51,7 @@ class SpinFreeState(WithHeader):
         self.dE_global = dE_global
 
         self._confdiffs = list()
+        self.spin = (self.mult - 1) / 2
 
     def _cds_sorted(self):
         return sorted([cd for cd in self._confdiffs],

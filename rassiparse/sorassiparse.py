@@ -3,10 +3,13 @@
 
 import argparse
 import logging
+logging.basicConfig(level=logging.INFO)
 import os
 import re
+import sys
 
 from jinja2 import Environment, FileSystemLoader
+from matplotlib import rc
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +19,8 @@ from SpinOrbitState import SpinOrbitState
 #from SFState import SFState
 #from SOState import SOState
 
+
+TEX = False
 
 def get_block_lines(text, regex):
     mobj = re.search(regex, text, re.DOTALL)
@@ -89,15 +94,16 @@ def parse_sorassi(text):
     weight_array = np.array(weight_lists, dtype=np.float)
     so_energies = weight_array[:, 1]
     weight_array[:, 1] = normalize_energies(so_energies)
+    logging.warning("Energies get normalized too early. Fixme plz :)")
     # Transition moments
     trans_re = "Total A \(sec-1\)[\s\-]+(.+?)--"
     trans_lists = get_block_lines(so_section, trans_re)
     from_ids, to_ids, oscs, *_ = zip(*trans_lists)
     oscs = [float(osc) for osc in oscs]
     # Check out if MOLCAS left out any transitions.
+    # Only consider excitations out of the GS
     to_ids = [int(to_id) for from_id, to_id
               in zip(from_ids, to_ids)
-              # This gives us only excitations from the GS
               if from_id == "1"]
     # If we got 40 SO states we expect ids from 2..40
     expected_ids = range(2, len(weight_lists)+1)
@@ -112,15 +118,15 @@ def parse_sorassi(text):
 
     so_states = list()
     for row, osc in zip(weight_array, oscs):
-        so_id, so_energy, *so_weight_line = row
-        so_state = SOState(so_id, so_energy, so_weight_line, osc)
+        state, E_global, *weight_line = row
+        so_state = SpinOrbitState(state, E_global, weight_line, osc)
         so_states.append(so_state)
 
     return sf_states, so_states, couplings
 
 
 def split_states(states):
-    all_ens = np.array([state.EeV for state in states])
+    all_ens = np.array([state.dE_global_eV for state in states])
 
     sing_inds = [i for i, state in enumerate(states)
                  if state.spin == 0.0]
@@ -135,6 +141,7 @@ def split_states(states):
 
 
 def fuse_labels(ax, x, ys, labels):
+    # y-values are in eV
     ys_diffs = np.array([ys[i+1]-ys[i] for i in range(len(ys)-1)])
     rel_diffs = ys_diffs / ys[1:]
     new_ys = [ys[0], ]
@@ -150,7 +157,21 @@ def fuse_labels(ax, x, ys, labels):
         ax.text(x, y, l, va="center")
 
 
-def plot_states(sf_states, so_states, couplings=None):
+def to_texmath(sstr):
+    sstr = sstr.replace("{}", "{{{}}}")
+    sstr = "$" + sstr + "$"
+    return sstr
+
+
+
+def plot_states(sf_states, so_states, couplings=None, usetex=False):
+    label_bases = ("S_{}", "SO_{}", "SO_{}", "T_{}")
+    cpl_base = "{}-{} ({:.0f} cm⁻¹)"
+
+    if usetex:
+        rc("text", usetex=True)
+        label_bases = [to_texmath(lb) for lb in label_bases]
+        cpl_base = "${{{}}}-{{{}}} ~ ({:.0f} ~ \mathrm{{cm}}^{{-1}})$"
     # Spin-free states
     (sf_sing_ens, sf_sing_inds,
      sf_trip_ens, sf_trip_inds, sf_ens) = split_states(sf_states)
@@ -165,15 +186,15 @@ def plot_states(sf_states, so_states, couplings=None):
     ax.set_xticks(range(4))
     ax.set_xticklabels(xlabels)
     kwargs = dict(color="k", ls=" ", marker="_", ms=40)
+
     inds = (sf_sing_inds, so_sing_inds, so_trip_inds, sf_trip_inds)
     for i, ens in enumerate((sf_sing_ens, so_sing_ens,
                              so_trip_ens, sf_trip_ens)):
         xs = np.full_like(ens, i)
         ax.plot(xs, ens, **kwargs)
         # Add label
-        label_bases = ("S{}", "SO{}", "SO{}", "T{}")
         labels = [label_bases[i].format(ind+1) for ind in inds[i]]
-        fuse_labels(ax, i+.05, ens, labels)
+        fuse_labels(ax, i+.1, ens, labels)
         """
         for lx, ly, ind in zip(label_xs, ens, inds[i]):
             label_base = label_bases[i]
@@ -188,14 +209,17 @@ def plot_states(sf_states, so_states, couplings=None):
     for from_id, to_id, abs_cpl in couplings:
         from_x = 1 if from_id-1 in so_sing_inds else 2
         to_x = 1 if to_id-1 in so_sing_inds else 2
-        from_y = so_ens[from_id-1]
-        to_y = so_ens[to_id-1]
-        ax.add_line(Line2D((from_x, to_x),
-                           (from_y, to_y)))
-        x_text = -0.1 + from_x + (to_x - from_x) / 2
-        y_text = from_y + (to_y - from_y) / 2
-        cpl_str = "{}<->{} ({:.1f})".format(from_id, to_id, abs_cpl)
-        ax.text(x_text, y_text, cpl_str)
+        try:
+            from_y = so_ens[from_id-1]
+            to_y = so_ens[to_id-1]
+            ax.add_line(Line2D((from_x, to_x),
+                               (from_y, to_y)))
+            x_text = -0.1 + from_x + (to_x - from_x) / 2
+            y_text = from_y + (to_y - from_y) / 2
+            cpl_str = cpl_base.format(from_id, to_id, abs_cpl)
+            ax.text(x_text, y_text, cpl_str)
+        except IndexError:
+            logging.warning("IndexError")
 
     # Drop the first singlets energies
     all_ens = np.concatenate((sf_sing_ens[1:],
@@ -247,19 +271,48 @@ def make_img_dict(sf_states, imgs, gs_conf):
             )
     return img_dict
 
-if __name__ == "__main__":
-    import sys
+
+def parse_args(args):
     parser = argparse.ArgumentParser("Parse SO-RASSI-calculations.")
     parser.add_argument("fn", help="SO-RASSI output to parse.")
+    parser.add_argument("--cthresh", type=int, default=200,
+                        help="Coupling threshold.")
+    parser.add_argument("--cbelow", type=float, help="Only draw couplings "
+                        "below this energy (in eV), e.g. around an "
+                        "excitation energy. Helps to avoid cluttered plots "
+                        "when many couplings are present.")
+    parser.add_argument("--tex", action="store_true", default=False,
+                        help="Use tex to render text.")
 
-    args = parser.parse_args()
+    return parser.parse_args(args)
+
+
+def run():
+    args = parse_args(sys.argv[1:])
     fn = args.fn
     with open(fn) as handle:
         text = handle.read()
     sf_states, so_states, couplings = parse_sorassi(text)
+    # Only keep couplings above or equal to a threshold
+    couplings = [c for c in couplings if c[2] >= args.cthresh]
+    if args.cbelow:
+        so_states_below = [sos.sostate for sos in so_states
+                           if sos.dE_global_eV <= args.cbelow]
+        logging.info("Drawing couplings between states below {} eV. "
+                     "These are the SO states {}.".format(args.cbelow,
+                     so_states_below)
+        )
+
+        couplings = [c for c in couplings
+                     if (c[0] in so_states_below) and
+                     (c[1] in so_states_below)]
     gs_conf = get_ground_state_conf(sf_states)
-    plot_states(sf_states, so_states, couplings)
+    plot_states(sf_states, so_states, couplings, usetex=args.tex)
     sys.exit()
     active_spaces, imgs, irreps = load_json(fn)
     img_trans_dict = make_img_dict(sf_states, imgs, gs_conf)
     make_html(so_states, img_trans_dict)
+
+
+if __name__ == "__main__":
+    run()
