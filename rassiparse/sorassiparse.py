@@ -160,6 +160,8 @@ def plot_states(sf_states, so_states, couplings=None, usetex=False):
     ax.axhline(y=3.06, color="k", linestyle="--")
 
     # Add couplings
+    horizontal_coupling_shift = -0.1
+    horizontal_shift_increment = 0.007
     for coupling in couplings:
         from_state = coupling.i1
         to_state = coupling.i2
@@ -170,22 +172,34 @@ def plot_states(sf_states, so_states, couplings=None, usetex=False):
         try:
             from_y = so_ens[from_state-1]
             to_y = so_ens[to_state-1]
-            ax.add_line(Line2D((from_x, to_x),
-                               (from_y, to_y)))
-            x_text = -0.1 + from_x + (to_x - from_x) / 2
-            y_text = from_y + (to_y - from_y) / 2
-            cpl_str = cpl_base.format(from_state, to_state, abs_)
-            ax.text(x_text, y_text, cpl_str)
         except IndexError:
             logging.warning("IndexError")
+            continue
 
-    # Drop the first singlets energies
-    all_ens = np.concatenate((sf_sing_ens[1:],
-                              so_sing_ens[1:],
-                              sf_trip_ens,
-                              so_trip_ens))
-    # The first two singlet states are not shown
-    #ax.set_ylim((all_ens.min()*.9, all_ens.max()*1.1))
+        # Add a little horizontal shift if the line is vertical
+        if from_x == to_x:
+            from_x += horizontal_coupling_shift
+            to_x += horizontal_coupling_shift
+            horizontal_coupling_shift += horizontal_shift_increment
+        """
+        delta_x = abs(to_x - from_x)
+        delta_y = abs(to_y - from_y)
+        length = np.linalg.norm((delta_x, delta_y))
+        rad = np.sin(delta_y / length)
+        print(length, rad)
+        rotation = np.rad2deg(rad)
+        """
+        rotation = 0
+
+        ax.add_line(Line2D((from_x, to_x),
+                           (from_y, to_y)))
+        x_text = -0.1 + from_x + (to_x - from_x) / 2
+        y_text = from_y + (to_y - from_y) / 2
+        cpl_str = cpl_base.format(from_state, to_state, abs_)
+        # http://matplotlib.org/examples/pylab_examples/
+        # text_rotation_relative_to_line.html
+        ax.text(x_text, y_text, cpl_str, rotation=rotation)
+
     ax.set_xlim(-0.5, 3.5)
     plt.tight_layout()
     plt.show()
