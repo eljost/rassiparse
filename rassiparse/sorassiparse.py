@@ -244,6 +244,14 @@ def make_img_dict(sf_states, imgs, gs_conf):
     return img_dict
 
 
+def export(out_fn_base, so_states, couplings):
+    so_export = np.array([sos.export() for sos in so_states])
+    np.save(out_fn_base, so_export)
+
+    cpl_export = np.array(couplings)
+    np.save(out_fn_base + "_couplings", cpl_export)
+
+
 def parse_args(args):
     parser = argparse.ArgumentParser("Parse SO-RASSI-calculations.")
     parser.add_argument("fn", help="SO-RASSI output to parse.")
@@ -293,6 +301,8 @@ def run():
 
     so_states, couplings = parse_sorassi(text)
     [so.set_sf_states(sf_states) for so in so_states]
+
+    export(fn_base, so_states, couplings)
     # Only keep couplings above or equal to a threshold
     couplings = [c for c in couplings if c.abs >= args.cthresh]
     if args.cbelow:

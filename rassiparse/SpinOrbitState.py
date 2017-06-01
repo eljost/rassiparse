@@ -34,3 +34,6 @@ class SpinOrbitState:
         for sfs_state, weight in zip(self.sfs_states, self.weights):
             self.sf_states.append((sf_states[sfs_state-1], weight))
             assert(self.sf_states[-1][0].state == sfs_state)
+
+    def export(self):
+        return (self.sostate, self.dE_global_eV, self.spin, self.osc)
