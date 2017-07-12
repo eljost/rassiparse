@@ -76,6 +76,18 @@ def make_html(sf_states, fn_base):
         handle.write(single_rendered)
 
 
+def make_export(sf_states, fn_base):
+    attrs = "state sym dE_global dE_global_eV osc".split()
+    as_lists = [sfs.as_list(attrs) for sfs in sf_states]
+    header = sf_states[0].get_headers(attrs)
+    # Replace whitespace
+    header = " ".join([re.sub("\s", "", h) for h in header])
+    header = re.sub("Δ", "d", header)
+    as_array = np.array(as_lists)
+    out_fn = "{}.dat".format(fn_base)
+    np.savetxt(out_fn, as_array, header=header)
+
+
 def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i+n]
@@ -640,6 +652,7 @@ def run():
             make_html(by_mult, fn_base_mult)
         if args.docx:
             make_docx(by_mult, docx_attrs, fn_base_mult)
+        make_export(by_mult, fn_base_mult)
 
 
 if __name__ == "__main__":
