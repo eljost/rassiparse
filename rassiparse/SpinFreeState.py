@@ -85,6 +85,12 @@ class SpinFreeState(WithHeader):
                 for cd in self._cds_sorted()
                 if (cd.mo_pairs is not None) and (cd.mo_images is not None)]
 
+    @property
+    def fns_and_weights(self):
+        cds = [cd for cd in self._cds_sorted()
+               if (cd.mo_pairs is not None) and (cd.mo_images is not None)]
+        return [(cd.mo_images, cd.weight) for cd in cds]
+
     def add_confdiff(self, confdiff):
         self._confdiffs.append(confdiff)
 
