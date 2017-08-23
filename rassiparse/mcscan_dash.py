@@ -98,7 +98,7 @@ def make_confdiff(enc_png_pairs, weight):
     return html.Div(children,  className="two columns")
 
 
-def start_app(app, dash_yaml):
+def prepare_app(app, dash_yaml):
     with open(dash_yaml) as handle:
         conf = yaml.load(handle.read())
 
@@ -250,9 +250,21 @@ def start_app(app, dash_yaml):
         return cds
 
 
-if __name__ == "__main__":
+def parse_args(args):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("yaml")
+    parser.add_argument("--port", default=8050, type=int)
+
+    return parser.parse_args(args)
+
+
+def run():
+    args = parse.args(sys.argv[1:])
+    
     app = dash.Dash()
-    app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/bWLwgP.css"})
-    ens_list, as_imgs, bo_dfs = load_ressources()
-    populate_app(app, ens_list, as_imgs, bo_dfs)
-    app.run_server()
+    prepare_app(app, args.yaml)
+    app.run_server(port=args.port)
+
+
+if __name__ == "__main__":
+    run()
