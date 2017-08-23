@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import argparse
 import base64
 import glob
 import logging
 import pprint
 import os
+import sys
 
 import dash
 import dash_core_components as dcc
@@ -259,7 +261,7 @@ def parse_args(args):
 
 
 def run():
-    args = parse.args(sys.argv[1:])
+    args = parse_args(sys.argv[1:])
     
     app = dash.Dash()
     prepare_app(app, args.yaml)
