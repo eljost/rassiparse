@@ -7,6 +7,7 @@ import logging
 import pprint
 import os
 import sys
+import tarfile
 
 import dash
 import dash_core_components as dcc
@@ -19,10 +20,8 @@ import numpy as np
 import pandas as pd
 import yaml
 
-#logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
-MO_WIDTH = 125
-MO_HEIGHT = MO_WIDTH
 
 def preload_pngs(png_fns):
     """Accepts a list of png filenames and returns a list
@@ -78,7 +77,22 @@ def load_ressources(conf):
     return energy_list, active_space_imgs, bo_dfs, fns_and_weights, mo_png_dict
 
 
-def make_confdiff(enc_png_pairs, weight):
+def pack(conf, conf_yaml):
+    globbed = [conf_yaml, ]
+    for to_glob in ("active_space_glob", "bo_glob", "mo_glob"):
+        globbed.extend(glob.glob(conf[to_glob]))
+    globbed.append(conf["rassiscan"])
+    globbed.extend([conf["energies"][title] for title in conf["energies"]])
+
+    packed_fn = "packed.tar.gz"
+    with tarfile.open(packed_fn, "w:gz") as tar:
+        for fn in globbed:
+            tar.add(fn)
+    logging.info(f"Packed files into {packed_fn}.")
+
+
+def make_confdiff(enc_png_pairs, weight, mo_size):
+    mo_width, mo_height = mo_size
     children = [html.H4("{:.1%}".format(weight))]
     for enc_from_png, enc_to_png in enc_png_pairs:
         from_src = get_enc_src(enc_from_png)
@@ -86,24 +100,21 @@ def make_confdiff(enc_png_pairs, weight):
         children.extend([
                 html.Img(
                     src=from_src,
-                    width=MO_WIDTH,
-                    height=MO_HEIGHT
+                    width=mo_width,
+                    height=mo_height
                 ),
 
                 html.Img(
                     src=to_src,
-                    width=MO_WIDTH,
-                    height=MO_HEIGHT
+                    width=mo_width,
+                    height=mo_height
                 ),
             ]
         )
     return html.Div(children,  className="two columns")
 
 
-def prepare_app(app, dash_yaml):
-    with open(dash_yaml) as handle:
-        conf = yaml.load(handle.read())
-
+def prepare_app(app, conf):
     ens_list, as_imgs, bo_dfs, fns_and_weights, mo_png_dict = load_ressources(conf)
 
     as_width, as_height = conf["active_space_size"]
@@ -245,7 +256,7 @@ def prepare_app(app, dash_yaml):
                 enc_to_png = mo_png_dict[to_fn]
                 enc_png_pairs.append((enc_from_png, enc_to_png))
 
-            cd = make_confdiff(enc_png_pairs, weight)
+            cd = make_confdiff(enc_png_pairs, weight, conf["mo_size"])
             cds.append(cd)
             
         
@@ -256,15 +267,23 @@ def parse_args(args):
     parser = argparse.ArgumentParser()
     parser.add_argument("yaml")
     parser.add_argument("--port", default=8050, type=int)
+    parser.add_argument("--pack", action="store_true")
 
     return parser.parse_args(args)
 
 
 def run():
     args = parse_args(sys.argv[1:])
+
+    with open(args.yaml) as handle:
+        conf = yaml.load(handle.read())
+
+    if args.pack:
+        pack(conf, args.yaml)
+        sys.exit()
     
     app = dash.Dash()
-    prepare_app(app, args.yaml)
+    prepare_app(app, conf)
     app.run_server(port=args.port)
 
 
