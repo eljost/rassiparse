@@ -205,6 +205,90 @@ def plot_states(sf_states, so_states, couplings=None, usetex=False):
     plt.show()
 
 
+def plot2_states(sf_states, so_states, couplings=None, usetex=False):
+    label_bases = ("S_{}", "T_{}", "SO_{}")
+    cpl_base = "{}-{} ({:.0f} cm⁻¹)"
+
+    if usetex:
+        rc("text", usetex=True)
+        label_bases = [to_texmath(lb) for lb in label_bases]
+        cpl_base = "${{{}}}-{{{}}} ~ ({:.0f} ~ \mathrm{{cm}}^{{-1}})$"
+    # Spin-free states
+    (sf_sing_ens, sf_sing_inds,
+     sf_trip_ens, sf_trip_inds, sf_ens) = split_states(sf_states)
+    # Spin-orbit states
+    (so_sing_ens, so_sing_inds,
+     so_trip_ens, so_trip_inds, so_ens) = split_states(so_states)
+
+    so_oscs = [sos.osc for sos in so_states]
+    # Bright so_oscs
+    bright_so_ens = [so_en for so_en, so_osc
+                     in zip(so_ens, so_oscs) if so_osc > 0.0005]
+    print(so_oscs)
+
+    fig, ax = plt.subplots()
+    ax.set_ylabel("deltaE / eV")
+    ax.set_xlabel("States")
+    xlabels = ["singlets", "triplets", "spin orbit"]
+    ax.set_xticks(range(3))
+    ax.set_xticklabels(xlabels)
+    kwargs = dict(color="k", ls=" ", marker="_", ms=40)
+
+    inds = (sf_sing_inds, sf_trip_inds, range(1, len(so_ens)+1))
+    for i, ens in enumerate((sf_sing_ens[1:], sf_trip_ens[1:], so_ens[1:])):
+        xs = np.full_like(ens, i)
+        ax.plot(xs, ens, **kwargs)
+        # Add label
+        labels = [label_bases[i].format(ind+1) for ind in inds[i]]
+        fuse_labels(ax, i+.1, ens, labels)
+
+    kwargs = dict(color="k", ls=" ", marker="_", ms=40)
+    kwargs["color"] = "r"
+    ax.plot(np.full_like(bright_so_ens, xs[0]), bright_so_ens, **kwargs)
+
+    # Horizontal lines at 405 and 365 nm
+    ax.axhline(y=3.4, color="k", linestyle="--")
+    ax.axhline(y=3.06, color="k", linestyle="--")
+
+    # Add couplings
+    horizontal_coupling_shift = -0.1
+    horizontal_shift_increment = 0.007
+    for coupling in couplings:
+        from_state = coupling.i1
+        to_state = coupling.i2
+        abs_ = coupling.abs
+
+        from_x = 0 if from_state-1 in so_sing_inds else 1
+        to_x = 0 if to_state-1 in so_sing_inds else 1
+        try:
+            from_y = so_ens[from_state-1]
+            to_y = so_ens[to_state-1]
+        except IndexError:
+            logging.warning("IndexError")
+            continue
+
+        # Add a little horizontal shift if the line is vertical
+        if from_x == to_x:
+            from_x += horizontal_coupling_shift
+            to_x += horizontal_coupling_shift
+            horizontal_coupling_shift += horizontal_shift_increment
+
+        rotation = 0
+
+        ax.add_line(Line2D((from_x, to_x),
+                           (from_y, to_y)))
+        x_text = -0.1 + from_x + (to_x - from_x) / 2
+        y_text = from_y + (to_y - from_y) / 2
+        cpl_str = cpl_base.format(from_state, to_state, abs_)
+        # http://matplotlib.org/examples/pylab_examples/
+        # text_rotation_relative_to_line.html
+        ax.text(x_text, y_text, cpl_str, rotation=rotation)
+
+    ax.set_xlim(-0.5, 2.5)
+    plt.tight_layout()
+    plt.show()
+
+
 def get_ground_state_conf(sf_states):
     sig_confs = significant_confs(sf_states[0].confs)
     sig_confs = sorted(sig_confs, key=lambda cf: -cf[-1])
@@ -265,6 +349,8 @@ def parse_args(args):
                         help="Use tex to render text.")
     parser.add_argument("--plot", action="store_true", default=False,
                         help="Plot the states using matplotlib.")
+    parser.add_argument("--plot2", action="store_true", default=False,
+                        help="Plot the states using matplotlib.")
     parser.add_argument("--html", action="store_true", default=False)
     parser.add_argument("--info", action="store_true",
             help="Print more information.")
@@ -319,6 +405,8 @@ def run():
 
     if args.plot:
         plot_states(sf_states, so_states, couplings, usetex=args.tex)
+    if args.plot2:
+        plot2_states(sf_states, so_states, couplings, usetex=args.tex)
     if args.html:
         make_html(so_states)
 

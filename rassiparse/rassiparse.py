@@ -581,6 +581,7 @@ def load_attrs(section):
 
     return sf_states_attrs, by_mult_attrs, docx_attrs
 
+
 def handle_spin_free_states(sf_states, trans_dict, mo_names_dict,
                             ground_state=None):
     # Try to load the MO images
