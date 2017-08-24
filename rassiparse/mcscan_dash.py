@@ -64,7 +64,7 @@ def load_ressources(conf):
         logging.info(f"Loaded '{bo_df_fn}'.")
 
     with open(conf["rassiscan"]) as handle:
-        fns_and_weights = yaml.load(handle.read())
+        rassi_scan = yaml.load(handle.read())
 
     # Preload individual MO images
     mo_glob = conf["mo_glob"]
@@ -74,7 +74,7 @@ def load_ressources(conf):
                    for mo_fn, enc_mo_png in zip(mo_fns, enc_mo_pngs)
     }
 
-    return energy_list, active_space_imgs, bo_dfs, fns_and_weights, mo_png_dict
+    return energy_list, active_space_imgs, bo_dfs, rassi_scan, mo_png_dict
 
 
 def pack(conf, conf_yaml):
@@ -115,7 +115,7 @@ def make_confdiff(enc_png_pairs, weight, mo_size):
 
 
 def prepare_app(app, conf):
-    ens_list, as_imgs, bo_dfs, fns_and_weights, mo_png_dict = load_ressources(conf)
+    ens_list, as_imgs, bo_dfs, rassi_scan, mo_png_dict = load_ressources(conf)
 
     as_width, as_height = conf["active_space_size"]
 
@@ -237,7 +237,7 @@ def prepare_app(app, conf):
         dep.Output("fns-and-weights", "children"),
         [dep.Input("energies", "clickData")]
     )
-    def update_fns_and_weights(clickData):
+    def update_rassi_scan(clickData):
         if clickData is None:
             root = 0
             step = 0
@@ -246,10 +246,18 @@ def prepare_app(app, conf):
             step = point["pointNumber"]
             root = point["curveNumber"]
 
+        as_dict = rassi_scan[step][root]
+        root_str = ("Step {}, Root {}, "+
+                    "ΔE = {:2.2f}, f = {:.4f}").format(
+                    step, root+1, as_dict["dE_global_eV"], as_dict["osc"]
+        )
         cds = [
-            html.H3(f"Step {step} -- Root {root+1}")
+            html.H3(root_str),
         ]
-        for fns, weight in fns_and_weights[step][root]:
+        for conf_dict in as_dict["configurations"]:
+            fns = conf_dict["mos"]
+            weight = conf_dict["weight"]
+
             enc_png_pairs = list()
             for from_fn, to_fn in fns:
                 enc_from_png = mo_png_dict[from_fn]

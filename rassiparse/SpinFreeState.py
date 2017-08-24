@@ -86,15 +86,6 @@ class SpinFreeState(WithHeader):
                 if (cd.mo_pairs is not None) and (cd.mo_images is not None)]
 
     @property
-    def fns_and_weights(self):
-        cds = [cd for cd in self._cds_sorted()
-               if (cd.mo_pairs is not None) and (cd.mo_images is not None)]
-        return [(cd.mo_images, cd.weight) for cd in cds]
-
-    def add_confdiff(self, confdiff):
-        self._confdiffs.append(confdiff)
-
-    @property
     def dE_global_eV(self):
         return self.dE_global * self.hartree2eV
 
@@ -102,6 +93,22 @@ class SpinFreeState(WithHeader):
     def weights(self):
         return ", ".join(["{:.0f}".format(cd.weight*100)
                           for cd in self._confdiffs])
+
+    def as_dict(self):
+        cds = [cd for cd in self._cds_sorted()
+               if (cd.mo_pairs is not None) and (cd.mo_images is not None)]
+        return {
+            "dE_global_eV": float(self.dE_global_eV),
+            "osc": self.osc,
+            "configurations": [{
+                "mos": cd.mo_images,
+                "weight": cd.weight
+            } for cd in cds]
+        }
+
+    def add_confdiff(self, confdiff):
+        self._confdiffs.append(confdiff)
+
 
     def set_ground_state(self, ground_state, osc):
         self.ground_state = ground_state

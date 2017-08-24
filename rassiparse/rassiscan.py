@@ -17,20 +17,18 @@ def parse_args(args):
         help="Scan logfile containing the rassi outputs.")
     parser.add_argument("mofns",
         help=".yaml file created by mopicgen.py --dumpfns.")
-    #parser.add_argument("outfn")
 
     return parser.parse_args(args)
 
 
 def handle_scan_step(spinfree_states, mo_fns):
-    fns_and_weights = list()
-    faw_dict = dict()
+    as_dicts = dict()
     # Iterave over all states for a given step
     for i, sfs in enumerate(spinfree_states):
         sfs.set_mo_images(mo_fns)
-        faw_dict[i] = sfs.fns_and_weights
+        as_dicts[i] = sfs.as_dict()
 
-    return faw_dict
+    return as_dicts
 
 
 def run():
@@ -60,11 +58,9 @@ def run():
     for i, (spinfree_states, mo_fns) in enumerate(zip(sfs_lists, mo_fn_lists)):
         faw_dict[i] = handle_scan_step(spinfree_states, mo_fns)
 
-    #out_fn = f"{args.outfn}.yaml"
     out_fn = "rassiscan.yaml"
     with open(out_fn, "w") as handle:
         handle.write(yaml.dump(faw_dict))
-
 
 
 if __name__ == "__main__":
