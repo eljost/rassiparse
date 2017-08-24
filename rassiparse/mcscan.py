@@ -102,14 +102,26 @@ def get_natural_bond_orders(text, roots, bond_pairs):
 
     return per_root_dfs
 
+
 def check_cmocorr(text):
-    logging.warning("--cmocorr tested only for C1 symmetry!")
-    # Ras 2           1  10  10  10.290
-    regex = "Ras 2\s*(\d+)\s*(\d+)\s*(\d+)\s*([\d\.]+)"
-    ras2_overlaps = re.findall(regex, text)
+    logging.warning("--cmocorr tested only with RAS2!")
+    regex = "Analyzing Orbital spaces\.(.+?)Analyzing Orbitals\."
+    orbital_spaces_blocks = re.findall(regex, text, re.DOTALL)
+    all_ras2_overlaps = list()
+    for i, osb in enumerate(orbital_spaces_blocks):
+        #Ras 2           1   6   6   6.000
+        #                2   4   4   4.000
+        #                   10  10  10.000
+        regex = "Ras 2\s*(.+?)\n\n"
+        #regex = "Ras 2(.+?)Secondary"
+        ras2_overlaps = re.search(regex, osb, re.DOTALL).groups()[0]
+        ras2_overlaps = ras2_overlaps.split("\n")
+        # Dropt the last line, that is a sum of the previous lines
+        ras2_overlaps = [_.strip().split() for _ in ras2_overlaps][:-1]
+        all_ras2_overlaps.extend(ras2_overlaps)
 
     columns = ("sym", "ref", "chk", "Overlap")
-    df = pd.DataFrame(ras2_overlaps, columns=columns)
+    df = pd.DataFrame(all_ras2_overlaps, columns=columns)
     print("cmocorr - ras2 overlaps")
     print(df)
 
@@ -162,6 +174,8 @@ def run():
 
     fig, axes = plt.subplots(subplots)
     for i, df, title in zip(range(subplots), dfs_to_plot, titles):
+        if subplots == 1:
+            axes = [axes, ]
         df.plot(ax=axes[i], title=title)
 
     plt.tight_layout()
