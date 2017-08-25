@@ -62,6 +62,18 @@ def get_mscaspt2_energies(text):
     return ens, ref_weights
 
 
+def get_mscaspt2_eigenvectors(text, roots):
+    regex = "Eigenvectors:(.+?)--"
+    ev_lists = [ev.strip().split()
+                for ev in re.findall(regex, text, re.DOTALL)
+    ]
+    eigenvectors = [np.array(ev, dtype=float).reshape(-1, roots)
+                    for ev in ev_lists]
+    ev_dfs = [pd.DataFrame(ev) for ev in eigenvectors]
+
+    return ev_dfs
+
+
 def get_natural_bond_orders(text, roots, bond_pairs):
     regex = "Atom A       Atom B       Bond Order\n(.+?)\-\-"
     nbo_analysis = re.findall(regex, text, re.DOTALL)
@@ -172,6 +184,12 @@ def run():
         subplots += 1
         dfs_to_plot.append(mscaspt2_df)
         titles.append("MS-CASPT2")
+        ev_dfs = get_mscaspt2_eigenvectors(text, 4)
+        print("MS-CASPT2 squared eigenvectors")
+        for i, ev_df in enumerate(ev_dfs):
+            print(f"Step {i:02d}:")
+            print(ev_df**2)
+            print()
 
     if ref_weights is not None:
         rw_df = pd.DataFrame(ref_weights)
@@ -189,6 +207,7 @@ def run():
                 print(f"Step {i:02d}:")
                 print(rw_df_)
                 print()
+
 
     fig, axes = plt.subplots(subplots)
     for i, df, title in zip(range(subplots), dfs_to_plot, titles):
