@@ -40,6 +40,10 @@ def run():
 
     coord_fns = natsorted(glob.glob(conf["coord_glob"]))
     jobiph_fns = natsorted(glob.glob(conf["jobiph_glob"]))
+    if len(coord_fns) > len(jobiph_fns):
+        coord_fns = coord_fns[:len(jobiph_fns)]
+    elif len(jobiph_fns) > len(coord_fns):
+        jobiph_fns = jobiph_fns[:len(coord_fns)]
 
     assert(len(coord_fns) == len(jobiph_fns))
 
