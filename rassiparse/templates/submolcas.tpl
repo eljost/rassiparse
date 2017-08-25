@@ -3,7 +3,7 @@
 #SBATCH -J {{ job_name }}
 #SBATCH -t 200:00:00
 #SBATCH --nodes=1
-#SBATCH --ntasks=24
+#SBATCH --ntasks=12
 #SBATCH --mem=0
 #SBATCH --hint=nomultithread
     
@@ -12,9 +12,9 @@ export MOLCAS_PROJECT='{{ project }}'
 
 module load molcas/8.2own
 
-export MOLCAS_NPROCS=24
+export MOLCAS_NPROCS=12
 export MOLCAS_PRINT=2
-export MOLCAS_MEM=4000
+export MOLCAS_MEM=8000
 export MOLCAS_EXE=$MOLCAS/bin/molcas.exe
 export MOLCAS_MOLDEN=ON
 export MOLCAS_OUTPUT=$CurrDir
