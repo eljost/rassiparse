@@ -49,7 +49,8 @@ def run():
 
     basis = conf["basis"]
     states = " ".join([str(i) for i in range(1, conf["multistate"]+1)])
-    multistate = "{} {}".format(conf["multistate"], states)
+    multistate = conf["multistate"]
+    multistate_str = "{} {}".format(multistate, states)
     shift = conf["shift"]
     root = pathlib.Path(conf["root_dir"])
     step_fmt = conf["step_fmt"]
@@ -79,10 +80,11 @@ def run():
                             coord_fn=coord,
                             basis=basis,
                             jobiph_fn=jobiph,
-                            multistate=multistate,
+                            multistate_str=multistate_str,
                             shift=shift,
                             curr_dir=curr_dir,
                             step_str=step_str,
+                            multistate=multistate,
         )
 
         # Render Submit script
