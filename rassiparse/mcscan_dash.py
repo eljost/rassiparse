@@ -189,7 +189,10 @@ def prepare_app(app, conf):
                 yaxis = dict(
                     title = "E / eV"
                 ),
-                hovermode = "closest"
+                hovermode = "closest",
+                margin={'l': 25, 'b': 25, 't': 35, 'r': 0},
+                width=800,
+                height=400,
             )
         }
 
@@ -228,7 +231,10 @@ def prepare_app(app, conf):
                 ),
                 yaxis = dict(
                     title = "Mayer BO"
-                )
+                ),
+                margin={'l': 35, 'b': 25, 't': 25, 'r': 0},
+                width=800,
+                height=400,
             )
         }
 
