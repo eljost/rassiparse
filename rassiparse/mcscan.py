@@ -10,6 +10,12 @@ import numpy as np
 import pandas as pd
 
 HARTREE2EV = 27.211386
+REF_WEIGHT_WARNING = """
+###############
+Standard deviation of ±{:.1%} for the reference weights seems high!
+
+Check the reference weights carefully!
+###############"""
 
 def parse_roots_ens(text, regex):
     roots, ens = zip(
@@ -170,7 +176,19 @@ def run():
     if ref_weights is not None:
         rw_df = pd.DataFrame(ref_weights)
         print("Reference weights:")
-        print(rw_df.describe())
+        rw_description = rw_df.describe()
+        print(rw_description)
+        std = rw_description.loc["std"][0]
+
+        if std > 0.01:
+            logging.warning(REF_WEIGHT_WARNING.format(std, rw_df))
+            total_steps = len(caspt2_df.index)
+            split_rw_dfs = np.array_split(rw_df, total_steps)
+            for i, rw_df_ in enumerate(split_rw_dfs):
+                rw_df_ = rw_df_.reset_index(drop=True)
+                print(f"Step {i:02d}:")
+                print(rw_df_)
+                print()
 
     fig, axes = plt.subplots(subplots)
     for i, df, title in zip(range(subplots), dfs_to_plot, titles):

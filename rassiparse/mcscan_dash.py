@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 
 def preload_pngs(png_fns):
     """Accepts a list of png filenames and returns a list
-    of base64 encoded png images."""
+    of strings holding base64 encoded png images."""
     enc_pngs = list()
     for fn in png_fns:
         with open(fn, "rb") as handle:
@@ -162,6 +162,8 @@ def prepare_app(app, conf):
     ])
 
     app.css.append_css({"external_url": "https://codepen.io/chriddyp/pen/bWLwgP.css"})
+    #app.css.config.serve_locally = True
+    #app.scripts.config.serve_locally = True
 
 
     @app.callback(
