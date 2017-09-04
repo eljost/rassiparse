@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import logging
 import re
 import sys
 
@@ -10,15 +11,7 @@ import yaml
 
 from rassiparse import parse_rassi, handle_rassi, set_mo_images
 
-def parse_args(args):
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("rassi",
-        help="Scan logfile containing the rassi outputs.")
-    parser.add_argument("mofns",
-        help=".yaml file created by mopicgen.py --dumpfns.")
-
-    return parser.parse_args(args)
+logging.basicConfig(level=logging.INFO)
 
 
 def handle_scan_step(spinfree_states, mo_fns):
@@ -31,13 +24,36 @@ def handle_scan_step(spinfree_states, mo_fns):
     return as_dicts
 
 
+def cat_files(fns):
+    cat_str = ""
+    for fn in fns:
+        with open(fn) as handle:
+            text = handle.read()
+        cat_str += text
+        logging.info(f"Read file '{fn}'.")
+    return cat_str
+
+
+def parse_args(args):
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("fns", nargs="+",
+        help="Logfiles containing the rassi outputs.")
+    parser.add_argument("mofns",
+        help=".yaml file created by mopicgen.py --dumpfns.")
+
+    return parser.parse_args(args)
+
+
 def run():
     args = parse_args(sys.argv[1:])
 
     # Split into single &rassi chunks
     rassi_chunk_regex = "Start Module: rassi(.+?)Stop Module:  rassi"
-    with open(args.rassi) as handle:
-        text = handle.read()
+
+    fns = natsorted(args.fns)
+    text = cat_files(fns)
+
     rassi_chunks = re.findall(rassi_chunk_regex, text, re.DOTALL)
     sfs_lists = list()
     for rc in rassi_chunks:

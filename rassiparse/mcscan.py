@@ -6,8 +6,11 @@ import re
 import sys
 
 import matplotlib.pyplot as plt
+from natsort import natsorted
 import numpy as np
 import pandas as pd
+
+logging.basicConfig(level=logging.INFO)
 
 HARTREE2EV = 27.211386
 REF_WEIGHT_WARNING = """
@@ -144,10 +147,21 @@ def check_cmocorr(text):
     print(df)
 
 
+def cat_files(fns):
+    cat_str = ""
+    for fn in fns:
+        with open(fn) as handle:
+            text = handle.read()
+        cat_str += text
+        logging.info(f"Read file '{fn}'.")
+    return cat_str
+
+
 def parse_args(args):
     parser = argparse.ArgumentParser()
-    parser.add_argument("fn")
+    parser.add_argument("fns", nargs="+")
     parser.add_argument("--nbo", type=int, nargs="+")
+    parser.add_argument("--rasscf", action="store_true")
     parser.add_argument("--cmocorr", action="store_true")
     parser.add_argument("--caspt2", action="store_true")
     parser.add_argument("--mscaspt2", action="store_true")
@@ -158,17 +172,22 @@ def parse_args(args):
 def run():
     args = parse_args(sys.argv[1:])
 
-    with open(args.fn) as handle:
-        text = handle.read()
+    fns = natsorted(args.fns)
+    text = cat_files(fns)
 
-    rasscf_ens, roots = get_rasscf_energies(text)
-    ens_df = pd.DataFrame(rasscf_ens)
-    ens_df.to_csv("rasscf_ens.csv", index=False)
-
-    subplots = 1
-    dfs_to_plot = [ens_df, ]
-    titles = ["SA-RASSCF", ]
+    subplots = 0
     ref_weights = None
+    dfs_to_plot = list()
+    titles = list()
+
+    if args.rasscf:
+        rasscf_ens, roots = get_rasscf_energies(text)
+        ens_df = pd.DataFrame(rasscf_ens)
+        ens_df.to_csv("rasscf_ens.csv", index=False)
+        subplots += 1
+        dfs_to_plot.append(ens_df)
+        titles.append("SA-RASSCF")
+
     if args.caspt2:
         caspt2_ens, ref_weights = get_caspt2_energies(text)
         caspt2_df = pd.DataFrame(caspt2_ens)

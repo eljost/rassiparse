@@ -7,3 +7,5 @@
     sbatch -p $1 submolcas.sh
     cd ..
 {% endfor %}
+
+# cp step0*/mscaspt2_rassi*.out .
